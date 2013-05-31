@@ -403,13 +403,13 @@ int guiLuaApi::l_get_favorites(lua_State *L)
 		lua_newtable(L);
 		int top_lvl2 = lua_gettop(L);
 
-		if (servers[i]["clients"].asString().size()) {
+		if (servers[i]["clients"].isConvertibleTo(Json::intValue)) {
 			lua_pushstring(L,"clients");
 			lua_pushnumber(L,servers[i]["clients"].asInt());
 			lua_settable(L, top_lvl2);
 		}
 
-		if (servers[i]["clients_max"].asString().size()) {
+		if (servers[i]["clients_max"].isConvertibleTo(Json::intValue)) {
 			lua_pushstring(L,"clients_max");
 			lua_pushnumber(L,servers[i]["clients_max"].asInt());
 			lua_settable(L, top_lvl2);
