@@ -882,8 +882,11 @@ void GUIFormSpecMenu::parseTextArea(parserData* data,std::vector<std::string>& p
 			e->setTextAlignment(gui::EGUIA_UPPERLEFT, gui::EGUIA_UPPERLEFT);
 		} else {
 			irr::SEvent evt;
-			evt.KeyInput.Key = KEY_END;
-			evt.EventType = EET_KEY_INPUT_EVENT;
+			evt.EventType            = EET_KEY_INPUT_EVENT;
+			evt.KeyInput.Key         = KEY_END;
+			evt.KeyInput.Char        = 0;
+			evt.KeyInput.Control     = 0;
+			evt.KeyInput.Shift       = 0;
 			evt.KeyInput.PressedDown = true;
 			e->OnEvent(evt);
 		}
