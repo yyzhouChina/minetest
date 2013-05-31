@@ -384,9 +384,9 @@ int guiLuaApi::l_get_favorites(lua_State *L)
 	std::vector<ServerListSpec> servers;
 #if USE_CURL
 	if(listtype == "online") {
-		servers = ServerList::getLocal();
-	} else {
 		servers = ServerList::getOnline();
+	} else {
+		servers = ServerList::getLocal();
 	}
 #else
 	servers = ServerList::getLocal();
@@ -403,16 +403,30 @@ int guiLuaApi::l_get_favorites(lua_State *L)
 		lua_newtable(L);
 		int top_lvl2 = lua_gettop(L);
 
-		if (servers[i]["clients"].isConvertibleTo(Json::intValue)) {
-			lua_pushstring(L,"clients");
-			lua_pushnumber(L,servers[i]["clients"].asInt());
-			lua_settable(L, top_lvl2);
+		if (servers[i]["clients"].asString().size()) {
+
+			const char* clients_raw = servers[i]["clients"].asString().c_str();
+			char* endptr = 0;
+			int numbervalue = strtol(clients_raw,&endptr,10);
+
+			if ((*clients_raw != 0) && (*endptr == 0)) {
+				lua_pushstring(L,"clients");
+				lua_pushnumber(L,numbervalue);
+				lua_settable(L, top_lvl2);
+			}
 		}
 
-		if (servers[i]["clients_max"].isConvertibleTo(Json::intValue)) {
-			lua_pushstring(L,"clients_max");
-			lua_pushnumber(L,servers[i]["clients_max"].asInt());
-			lua_settable(L, top_lvl2);
+		if (servers[i]["clients_max"].asString().size()) {
+
+			const char* clients_max_raw = servers[i]["clients"].asString().c_str();
+			char* endptr = 0;
+			int numbervalue = strtol(clients_max_raw,&endptr,10);
+
+			if ((*clients_max_raw != 0) && (*endptr == 0)) {
+				lua_pushstring(L,"clients_max");
+				lua_pushnumber(L,numbervalue);
+				lua_settable(L, top_lvl2);
+			}
 		}
 
 		if (servers[i]["version"].asString().size()) {
@@ -804,12 +818,12 @@ bool guiLuaApi::isMinetestPath(std::string path) {
 	char* buf [MAX_PATH];
 
 	if (GetTempPath (MAX_PATH, buf) != 0) {
-		if (path.find(buf) == 0)
+		if (fs::AbsolutePath(path).find(buf) == 0)
 			return true;
 	}
 #else
 	if ((std::string(DIR_DELIM) == "/") &&
-			(path.find("/tmp") == 0))
+			(fs::AbsolutePath(path).find("/tmp") == 0))
 		return true;
 #endif
 
