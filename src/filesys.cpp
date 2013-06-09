@@ -210,8 +210,8 @@ bool DeleteSingleFileOrEmptyDirectory(std::string path)
 
 std::string AbsolutePath(std::string path) {
 	char* retval;
-	char resoved_path[_MAX_PATH];
-	retval = _fullpath(resolved_path,path.c_str(),_MAX_PATH)
+	char resolved_path[_MAX_PATH];
+	retval = _fullpath(resolved_path,path.c_str(),_MAX_PATH);
 	if (retval != 0) {
 		std::string return_val = resolved_path;
 		return return_val;

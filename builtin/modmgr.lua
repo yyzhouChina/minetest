@@ -57,10 +57,29 @@ function modmgr.extract(modfile)
 			return tempfolder
 		end
 	end
+	
+	if modfile.type ~= "zip" then
+		local tempfolder = os.tempfolder()
+		
+		if tempfolder ~= nil and
+			tempfodler ~= "" then
+			engine.create_dir(tempfolder)
+			engine.extract_archive(modfile.name,tempfolder)
+			
+			return tempfolder
+		end
+	end
 end
 
 -------------------------------------------------------------------------------
 function modmgr.getbasefolder(temppath)
+
+	if temppath == nil then
+		return {
+		type = "invalid",
+		path = ""
+		}
+	end
 
 	local testfile = io.open(temppath .. DIR_DELIM .. "init.lua","r")
 	if testfile ~= nil then
@@ -83,7 +102,7 @@ function modmgr.getbasefolder(temppath)
 	local subdirs = engine.get_dirlist(temppath,true)
 	
 	--only single mod or modpack allowed
-	if #subdirs > 1 then
+	if #subdirs ~= 1 then
 		return {
 			type = "invalid",
 			path = ""
