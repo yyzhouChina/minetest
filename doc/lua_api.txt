@@ -1087,6 +1087,24 @@ minetest.find_path(pos1,pos2,searchdistance,max_jump,max_drop,algorithm)
 minetest.spawn_tree (pos, {treedef})
 ^ spawns L-System tree at given pos with definition in treedef table
 
+minetest.dispatch_async_function(function,parameters)
+^ dispatches function to be executed in parallel
+^ function a function definition to be executed
+^ parameters data required for function execution (has to be serializable)
+^ returns id of async call
+^ NOTE: there are several limitations for asynchronous function
+^       -no access to functions not beeing lua standard
+^       -no access to any global or local data not beeing passed by "parameters"
+^       -no full minetest api support (may be extended in future)
+
+minetest.register_async_callback_handler(async_callback)
+^ register a callback to be called once a async result is completed
+
+async_callback(id,result)
+^ called once a result is ready
+^ id identifier returned on dispatch_async_function
+^ result return value of function executed asynchronously
+
 Inventory:
 minetest.get_inventory(location) -> InvRef
 ^ location = eg. {type="player", name="celeron55"}

@@ -1,4 +1,4 @@
-minetest.register_async_function = function(worker_function,parameters)
+minetest.dispatch_async_function = function(worker_function,parameters)
 	if worker_function == nil or
 		parameters == nil then
 		return false;
