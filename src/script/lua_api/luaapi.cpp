@@ -33,6 +33,7 @@ extern "C" {
 #include "rollback.h"
 #include "log.h"
 #include "emerge.h"
+#include "cpp_api/s_thread_async.h"
 #include "main.h"  //required for g_settings
 
 struct EnumString ModApiBasic::es_OreType[] =
@@ -92,6 +93,30 @@ bool ModApiBasic::Initialize(lua_State* L,int top) {
 	retval &= API_FCT(rollback_revert_actions_by);
 
 	retval &= API_FCT(register_ore);
+
+	retval &= API_FCT(schedule_job);
+	retval &= API_FCT(get_job_results);
+
+	return retval;
+}
+
+bool ModApiBasic::InitializeAsync(lua_State* L,int top) {
+
+	bool retval = true;
+
+	retval &= API_FCT(stop_async_thread);
+	retval &= API_FCT(async_yield);
+	retval &= API_FCT(async_push_result);
+	retval &= API_FCT(async_get_job);
+
+	retval &= API_FCT(debug);
+	retval &= API_FCT(log);
+
+	retval &= API_FCT(setting_set);
+	retval &= API_FCT(setting_get);
+	retval &= API_FCT(setting_getbool);
+	retval &= API_FCT(setting_save);
+	retval &= API_FCT(get_modpath);
 
 	return retval;
 }
@@ -648,6 +673,111 @@ int ModApiBasic::l_register_ore(lua_State *L)
 	verbosestream << "register_ore: ore '" << ore->ore_name
 		<< "' registered" << std::endl;
 	return 0;
+}
+
+int ModApiBasic::l_schedule_job(lua_State *L) {
+	static unsigned int id = 0;
+
+	int index = 1;
+	luaL_checktype(L, index, LUA_TTABLE);
+
+	AsyncJob topush;
+	topush.tocall = checkstringfield(L,index,"tocall");
+	topush.parameters = checkstringfield(L,index,"parameters");
+	topush.id = id;
+
+	lua_getfield(L, LUA_REGISTRYINDEX, "async_engine");
+	AsyncThread* thread = (AsyncThread*) lua_touserdata(L, -1);
+	lua_pop(L, 1);
+
+	thread->queueJob(topush);
+
+	lua_pushnumber(L, id);
+	id++;
+	return 1;
+}
+
+int ModApiBasic::l_get_job_results(lua_State *L) {
+
+	GET_ASYNC_THREAD
+
+	lua_newtable(L);
+	int top = lua_gettop(L);
+
+	for(unsigned int i = 0; (i < MAX_RESULTS_PER_STEP) && thread->haveResult(); i++) {
+		lua_pushnumber(L,i+1);
+		lua_newtable(L);
+		int subtable = lua_gettop(L);
+
+		AsyncResult result = thread->popJobResult();
+
+		lua_pushstring(L,"id");
+		lua_pushnumber(L,result.id);
+		lua_settable(L, subtable);
+
+		lua_pushstring(L,"result");
+		lua_pushstring(L,result.retval.c_str());
+		lua_settable(L, subtable);
+
+		lua_settable(L, top);
+	}
+	return 1;
+}
+
+
+int ModApiBasic::l_stop_async_thread(lua_State *L) {
+
+	GET_ASYNC_THREAD
+
+	lua_pushboolean(L, !thread->getRun());
+	return 1;
+}
+
+int ModApiBasic::l_async_yield(lua_State *L) {
+	usleep(100);
+	return 0;
+}
+
+int ModApiBasic::l_async_push_result(lua_State *L) {
+	AsyncResult result;
+
+	result.id = luaL_checknumber(L,1);
+	if (! lua_isnil(L,2)) {
+		result.retval = luaL_checkstring(L,2);
+	}
+
+	GET_ASYNC_THREAD
+
+	thread->queueJobResult(result);
+
+	return 0;
+}
+
+int ModApiBasic::l_async_get_job(lua_State *L) {
+	GET_ASYNC_THREAD
+
+	if (thread->haveJob()) {
+
+		AsyncJob job = thread->fetchJob();
+
+		lua_newtable(L);
+		int top = lua_gettop(L);
+		lua_pushstring(L,"id");
+		lua_pushnumber(L,job.id);
+		lua_settable(L, top);
+
+		lua_pushstring(L,"tocall");
+		lua_pushstring(L,job.tocall.c_str());
+		lua_settable(L, top);
+
+		lua_pushstring(L,"parameters");
+		lua_pushstring(L,job.parameters.c_str());
+		lua_settable(L, top);
+	}
+	else {
+		lua_pushnil(L);
+	}
+	return 1;
 }
 
 ModApiBasic modapibasic_prototype;

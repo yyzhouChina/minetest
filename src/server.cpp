@@ -773,6 +773,7 @@ Server::Server(
 				<<builtinpath<<std::endl;
 		throw ModError("Failed to load and run "+builtinpath);
 	}
+
 	// Print 'em
 	infostream<<"Server: Loading mods: ";
 	for(std::vector<ModSpec>::iterator i = m_mods.begin();
@@ -795,6 +796,9 @@ Server::Server(
 			throw ModError("Failed to load and run "+scriptpath);
 		}
 	}
+
+	//start asynchronous lua handler
+	m_script->startAsyncLuaHandling();
 
 	// Read Textures and calculate sha1 sums
 	fillMediaCache();

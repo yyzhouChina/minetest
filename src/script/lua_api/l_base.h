@@ -39,6 +39,7 @@ public:
 	ModApiBase();
 
 	virtual bool Initialize(lua_State* L, int top) = 0;
+	inline virtual bool InitializeAsync(lua_State* L, int top) {return true;};
 	virtual ~ModApiBase() {};
 
 protected:

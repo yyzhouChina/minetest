@@ -23,7 +23,6 @@ extern "C" {
 #include "lualib.h"
 }
 
-
 #include "scriptapi.h"
 #include "common/c_converter.h"
 #include "lua_api/l_base.h"
@@ -205,10 +204,10 @@ ScriptApi::ScriptApi() {
 
 ScriptApi::ScriptApi(Server* server)
 {
-
 	setServer(server);
 	setStack(luaL_newstate());
 	assert(getStack());
+	m_async_thread = new AsyncThread();
 
 	//TODO add security
 
@@ -219,9 +218,11 @@ ScriptApi::ScriptApi(Server* server)
 	lua_pushlightuserdata(L, this);
 	lua_setfield(L, LUA_REGISTRYINDEX, "scriptapi");
 
+	lua_pushlightuserdata(L, m_async_thread);
+	lua_setfield(L, LUA_REGISTRYINDEX, "async_engine");
+
 	lua_newtable(L);
 	lua_setglobal(L, "minetest");
-
 
 	for (std::vector<ModApiBase*>::iterator i = m_mod_api_modules->begin();
 			i != m_mod_api_modules->end(); i++) {
@@ -247,13 +248,25 @@ ScriptApi::ScriptApi(Server* server)
 }
 
 ScriptApi::~ScriptApi() {
+	m_async_thread->stop();
+
+	while (m_async_thread->IsRunning()) {
+		sleep(1);
+	}
+	delete(m_async_thread);
 	lua_close(getStack());
+}
+
+bool ScriptApi::startAsyncLuaHandling() {
+	m_async_thread->m_scriptapi = this;
+	m_async_thread->Start();
+
+	return true;
 }
 
 bool ScriptApi::scriptLoad(const char *path)
 {
 	lua_State* L = getStack();
-	setStack(0);
 
 	verbosestream<<"Loading and running script from "<<path<<std::endl;
 

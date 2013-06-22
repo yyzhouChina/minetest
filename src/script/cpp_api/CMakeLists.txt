@@ -7,5 +7,6 @@ set(SCRIPT_CPP_API_SRCS
 	${CMAKE_CURRENT_SOURCE_DIR}/s_node.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/s_nodemeta.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/s_player.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/s_thread_async.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/scriptapi.cpp
 	PARENT_SCOPE)

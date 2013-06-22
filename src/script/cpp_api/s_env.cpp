@@ -47,6 +47,14 @@ void ScriptApiEnv::environment_Step(float dtime)
 	SCRIPTAPI_PRECHECKHEADER
 	//infostream<<"scriptapi_environment_step"<<std::endl;
 
+	//first run async callbacks
+	lua_getglobal(L,"async_on_step_handler");
+
+	if(!lua_isnil(L, -1)) {
+		luaL_checktype(L, -1, LUA_TFUNCTION);
+		lua_call(L, 0, 0);
+	}
+
 	// Get minetest.registered_globalsteps
 	lua_getglobal(L, "minetest");
 	lua_getfield(L, -1, "registered_globalsteps");

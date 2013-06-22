@@ -30,6 +30,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "cpp_api/s_node.h"
 #include "cpp_api/s_inventory.h"
 #include "cpp_api/s_entity.h"
+#include "cpp_api/s_thread_async.h"
 
 class ModApiBase;
 
@@ -68,6 +69,8 @@ public:
 	static bool registerModApiModule(ModApiBase* prototype);
 	/** load a mod **/
 	bool loadMod(const std::string &scriptpath,const std::string &modname);
+	/** start asynchronous lua call handler **/
+	bool startAsyncLuaHandling();
 
 private:
 	void getAuthHandler();
@@ -76,6 +79,10 @@ private:
 	bool scriptLoad(const char *path);
 
 	static std::vector<ModApiBase*>* m_mod_api_modules;
+
+	AsyncThread* m_async_thread;
+
+	friend AsyncThread;
 
 };
 

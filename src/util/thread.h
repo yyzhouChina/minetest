@@ -21,9 +21,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define UTIL_THREAD_HEADER
 
 #include "../irrlichttypes.h"
+#include "container.h"
+#include "porting.h"
 #include <jthread.h>
 #include <jmutex.h>
 #include <jmutexautolock.h>
+#include <list>
 
 template<typename T>
 class MutexedVariable

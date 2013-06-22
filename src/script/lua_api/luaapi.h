@@ -28,6 +28,8 @@ public:
 
 	bool Initialize(lua_State* L,int top);
 
+	bool InitializeAsync(lua_State* L,int top);
+
 private:
 	// debug(text)
 	// Writes a line to dstream
@@ -133,6 +135,28 @@ private:
 	static int l_register_ore(lua_State *L);
 
 	static struct EnumString es_OreType[];
+
+	// schedule a job to be run asynchronous
+	static int l_schedule_job(lua_State *L);
+
+	// read current finished result table
+	static int l_get_job_results(lua_State *L);
+
+	// async only functions
+
+	// check if async handler needs to be stopped
+	static int l_stop_async_thread(lua_State *L);
+
+	// make async handler yield
+	static int l_async_yield(lua_State *L);
+
+	// write job results
+	static int l_async_push_result(lua_State *L);
+
+	// read async joblist
+	static int l_async_get_job(lua_State *L);
+
+
 };
 
 
