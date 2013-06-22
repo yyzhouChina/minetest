@@ -30,14 +30,11 @@ extern "C" {
 #include "scriptapi.h"
 #include "server.h"
 #include "lua_api/l_base.h"
-#include "jthread/jmutexautolock.h"
 
 extern int script_ErrorHandler(lua_State *L);
 
 AsyncThread::AsyncThread()
 	: SimpleThread() {
-	m_result_lock.Init();
-	m_job_lock.Init();
 }
 
 void* AsyncThread::Thread() {
@@ -60,6 +57,9 @@ void* AsyncThread::Thread() {
 	lua_pushlightuserdata(L, m_scriptapi);
 	lua_setfield(L, LUA_REGISTRYINDEX, "scriptapi");
 
+	lua_pushlightuserdata(L, m_jobstore);
+	lua_setfield(L, LUA_REGISTRYINDEX, "jobstore");
+
 	lua_newtable(L);
 	lua_setglobal(L, "minetest");
 
@@ -68,8 +68,8 @@ void* AsyncThread::Thread() {
 
 	//Add simplified (safe) api
 	for (std::vector<ModApiBase*>::iterator i =
-				m_scriptapi->m_mod_api_modules->begin();
-			i != m_scriptapi->m_mod_api_modules->end(); i++) {
+				m_modlist.begin();
+			i != m_modlist.end(); i++) {
 		//initializers are called within minetest global table!
 		lua_getglobal(L, "minetest");
 		int top = lua_gettop(L);
@@ -98,37 +98,4 @@ void* AsyncThread::Thread() {
 	lua_pop(L, 1); // Pop the error handler from stack
 	lua_close(L);
 	return 0;
-}
-
-void AsyncThread::queueJob(AsyncJob job) {
-	JMutexAutoLock(this->m_job_lock);
-	m_jobs.push_back(job);
-}
-
-AsyncJob AsyncThread::fetchJob() {
-	JMutexAutoLock(this->m_job_lock);
-	AsyncJob retval = m_jobs.back();
-	m_jobs.pop_back();
-	return retval;
-}
-
-void AsyncThread::queueJobResult(AsyncResult result) {
-	JMutexAutoLock(this->m_result_lock);
-	m_results.push_back(result);
-}
-AsyncResult AsyncThread::popJobResult() {
-	JMutexAutoLock(this->m_result_lock);
-	AsyncResult retval = m_results.back();
-	m_results.pop_back();
-	return retval;
-}
-
-bool AsyncThread::haveJob() {
-	JMutexAutoLock(this->m_job_lock);
-	return (m_jobs.size() > 0);
-}
-
-bool AsyncThread::haveResult() {
-	JMutexAutoLock(this->m_result_lock);
-	return (m_results.size() > 0);
 }

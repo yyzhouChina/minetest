@@ -17,34 +17,50 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#ifndef S_THREAD_ASYNC_H_
-#define S_THREAD_ASYNC_H_
+#ifndef C_JOBSTORE_H_
+#define C_JOBSTORE_H_
 
-class ScriptApi;
-class JobStore;
-class ModApiBase;
-
+#include "jthread/jmutex.h"
 #include <vector>
-#include "util/thread.h"
+#include <string>
 
-class AsyncThread : public SimpleThread {
+struct AsyncJob {
+	std::string tocall;
+	std::string parameters;
+	unsigned int id;
+};
+
+struct AsyncResult {
+	std::string retval;
+	unsigned int id;
+};
+
+
+class JobStore {
 public:
-	AsyncThread();
-	void* Thread();
+	JobStore();
 
-	inline void setScriptapi(ScriptApi* val) {
-		m_scriptapi = val;
-	}
-	inline void setJobStore(JobStore* val) {
-		m_jobstore = val;
-	}
-	inline void setModList(std::vector<ModApiBase*>* val) {
-		m_modlist = *val;
-	}
+	void queueJob(AsyncJob job);
+	AsyncJob fetchJob();
+	bool haveJob();
+
+	void queueJobResult(AsyncResult);
+	AsyncResult popJobResult();
+	bool haveResult();
 
 private:
-	ScriptApi* m_scriptapi;
-	JobStore*  m_jobstore;
-	std::vector<ModApiBase*> m_modlist;
+	JMutex m_job_lock;
+	JMutex m_result_lock;
+	std::vector<AsyncJob> m_jobs;
+	std::vector<AsyncResult> m_results;
 };
-#endif /* S_THREAD_ASYNC_H_ */
+
+#define GET_JOBSTORE \
+		lua_getfield(L, LUA_REGISTRYINDEX, "jobstore"); \
+		JobStore* jobstore = (JobStore*) lua_touserdata(L, -1); \
+		lua_pop(L, 1);
+
+#define MAX_RESULTS_PER_STEP 5
+
+
+#endif /* C_JOBSTORE_H_ */

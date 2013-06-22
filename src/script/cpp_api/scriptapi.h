@@ -31,6 +31,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "cpp_api/s_inventory.h"
 #include "cpp_api/s_entity.h"
 #include "cpp_api/s_thread_async.h"
+#include "common/c_jobstore.h"
 
 class ModApiBase;
 
@@ -80,9 +81,9 @@ private:
 
 	static std::vector<ModApiBase*>* m_mod_api_modules;
 
-	AsyncThread* m_async_thread;
+	std::vector<AsyncThread*> m_async_threads;
 
-	friend AsyncThread;
+	JobStore m_jobstore;
 
 };
 

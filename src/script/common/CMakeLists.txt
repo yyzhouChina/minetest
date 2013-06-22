@@ -3,4 +3,5 @@ set(SCRIPT_COMMON_SRCS
 	${CMAKE_CURRENT_SOURCE_DIR}/c_converter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/c_types.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/c_internal.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/c_jobstore.cpp
 	PARENT_SCOPE)

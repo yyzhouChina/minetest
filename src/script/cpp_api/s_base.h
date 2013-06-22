@@ -83,6 +83,7 @@ public:
 	ScriptApiBase();
 
 protected:
+	friend class AsyncThread;
 	friend class LuaABM;
 	friend class InvRef;
 	friend class ObjectRef;

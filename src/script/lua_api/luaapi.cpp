@@ -27,6 +27,7 @@ extern "C" {
 #include "server.h"
 #include "common/c_converter.h"
 #include "common/c_content.h"
+#include "common/c_jobstore.h"
 #include "lua_api/luaapi.h"
 #include "settings.h"
 #include "tool.h"
@@ -686,11 +687,9 @@ int ModApiBasic::l_schedule_job(lua_State *L) {
 	topush.parameters = checkstringfield(L,index,"parameters");
 	topush.id = id;
 
-	lua_getfield(L, LUA_REGISTRYINDEX, "async_engine");
-	AsyncThread* thread = (AsyncThread*) lua_touserdata(L, -1);
-	lua_pop(L, 1);
+	GET_JOBSTORE
 
-	thread->queueJob(topush);
+	jobstore->queueJob(topush);
 
 	lua_pushnumber(L, id);
 	id++;
@@ -699,17 +698,19 @@ int ModApiBasic::l_schedule_job(lua_State *L) {
 
 int ModApiBasic::l_get_job_results(lua_State *L) {
 
-	GET_ASYNC_THREAD
+	GET_JOBSTORE
 
 	lua_newtable(L);
 	int top = lua_gettop(L);
 
-	for(unsigned int i = 0; (i < MAX_RESULTS_PER_STEP) && thread->haveResult(); i++) {
+	for(unsigned int i = 0;
+		(i < MAX_RESULTS_PER_STEP) && jobstore->haveResult();
+		i++) {
 		lua_pushnumber(L,i+1);
 		lua_newtable(L);
 		int subtable = lua_gettop(L);
 
-		AsyncResult result = thread->popJobResult();
+		AsyncResult result = jobstore->popJobResult();
 
 		lua_pushstring(L,"id");
 		lua_pushnumber(L,result.id);
@@ -727,7 +728,9 @@ int ModApiBasic::l_get_job_results(lua_State *L) {
 
 int ModApiBasic::l_stop_async_thread(lua_State *L) {
 
-	GET_ASYNC_THREAD
+	lua_getfield(L, LUA_REGISTRYINDEX, "async_engine");
+	AsyncThread* thread = (AsyncThread*) lua_touserdata(L, -1);
+	lua_pop(L, 1);
 
 	lua_pushboolean(L, !thread->getRun());
 	return 1;
@@ -746,19 +749,19 @@ int ModApiBasic::l_async_push_result(lua_State *L) {
 		result.retval = luaL_checkstring(L,2);
 	}
 
-	GET_ASYNC_THREAD
+	GET_JOBSTORE
 
-	thread->queueJobResult(result);
+	jobstore->queueJobResult(result);
 
 	return 0;
 }
 
 int ModApiBasic::l_async_get_job(lua_State *L) {
-	GET_ASYNC_THREAD
+	GET_JOBSTORE
 
-	if (thread->haveJob()) {
+	if (jobstore->haveJob()) {
 
-		AsyncJob job = thread->fetchJob();
+		AsyncJob job = jobstore->fetchJob();
 
 		lua_newtable(L);
 		int top = lua_gettop(L);

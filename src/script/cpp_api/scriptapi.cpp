@@ -29,6 +29,8 @@ extern "C" {
 #include "log.h"
 #include "mods.h"
 
+#define ASYNC_THREAD_NUMBER 4
+
 int script_ErrorHandler(lua_State *L) {
 	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
 	if (!lua_istable(L, -1)) {
@@ -207,7 +209,12 @@ ScriptApi::ScriptApi(Server* server)
 	setServer(server);
 	setStack(luaL_newstate());
 	assert(getStack());
-	m_async_thread = new AsyncThread();
+
+	for (unsigned int i=0; i< ASYNC_THREAD_NUMBER; i++) {
+		AsyncThread* toadd = new AsyncThread();
+		m_async_threads.push_back(toadd);
+	}
+
 
 	//TODO add security
 
@@ -218,8 +225,8 @@ ScriptApi::ScriptApi(Server* server)
 	lua_pushlightuserdata(L, this);
 	lua_setfield(L, LUA_REGISTRYINDEX, "scriptapi");
 
-	lua_pushlightuserdata(L, m_async_thread);
-	lua_setfield(L, LUA_REGISTRYINDEX, "async_engine");
+	lua_pushlightuserdata(L, &m_jobstore);
+	lua_setfield(L, LUA_REGISTRYINDEX, "jobstore");
 
 	lua_newtable(L);
 	lua_setglobal(L, "minetest");
@@ -248,18 +255,29 @@ ScriptApi::ScriptApi(Server* server)
 }
 
 ScriptApi::~ScriptApi() {
-	m_async_thread->stop();
 
-	while (m_async_thread->IsRunning()) {
-		sleep(1);
+	for (unsigned int i=0; i < this->m_async_threads.size(); i++) {
+		m_async_threads[i]->stop();
 	}
-	delete(m_async_thread);
+
+	while(this->m_async_threads.size() > 0) {
+		if (! m_async_threads.back()->IsRunning()) {
+			delete(m_async_threads.back());
+			m_async_threads.pop_back();
+		}
+		usleep(50);
+	}
 	lua_close(getStack());
 }
 
 bool ScriptApi::startAsyncLuaHandling() {
-	m_async_thread->m_scriptapi = this;
-	m_async_thread->Start();
+
+	for (unsigned int i=0; i < this->m_async_threads.size(); i++) {
+		m_async_threads[i]->setScriptapi(this);
+		m_async_threads[i]->setJobStore(&m_jobstore);
+		m_async_threads[i]->setModList(m_mod_api_modules);
+		m_async_threads[i]->Start();
+	}
 
 	return true;
 }
