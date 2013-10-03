@@ -372,7 +372,10 @@ bool ServerEnvironment::line_of_sight(v3f pos1, v3f pos2, float stepsize)
 		MapNode n = getMap().getNodeNoEx(pos);
 
 		if(n.param0 != CONTENT_AIR) {
-			return false;
+			ContentFeatures content = m_gamedef->getNodeDefManager()->get(n.param0);
+
+			if (!content.light_propagates)
+				return false;
 		}
 	}
 	return true;
