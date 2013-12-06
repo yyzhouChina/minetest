@@ -2127,8 +2127,10 @@ void the_game(
 			if(!random_input)
 			{
 				// Mac OSX gets upset if this is set every frame
+#ifndef ANDROID
 				if(device->getCursorControl()->isVisible())
 					device->getCursorControl()->setVisible(false);
+#endif
 			}
 
 			if(first_loop_after_window_activation){
