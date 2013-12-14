@@ -592,6 +592,7 @@ void * Connection::Thread()
 		
 		runTimeouts(dtime);
 
+		//NOTE this is only thread safe for ONE consumer thread!
 		while(!m_command_queue.empty()){
 			ConnectionCommand c = m_command_queue.pop_front();
 			processCommand(c);
