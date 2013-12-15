@@ -271,6 +271,12 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("high_precision_fpu", "true");
 
 	settings->setDefault("language", "");
+
+#ifdef HAVE_TOUCHSCREENGUI
+	settings->setDefault("touchscreen", "1");
+#else
+	settings->setDefault("touchscreen", "0");
+#endif
 }
 
 void override_default_settings(Settings *settings, Settings *from)
