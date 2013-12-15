@@ -30,9 +30,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "tile.h"
 #include "localplayer.h"
 #include "camera.h"
-
 #include <IGUIStaticText.h>
 
+#ifdef HAVE_TOUCHSCREENGUI
+#include "touchscreengui.h"
+extern TouchScreenGUI *touchscreengui;
+#endif
 
 Hud::Hud(video::IVideoDriver *driver, scene::ISceneManager* smgr,
 		gui::IGUIEnvironment* guienv, gui::IGUIFont *font,
@@ -46,26 +49,31 @@ Hud::Hud(video::IVideoDriver *driver, scene::ISceneManager* smgr,
 	this->gamedef     = gamedef;
 	this->player      = player;
 	this->inventory   = inventory;
-	
+
 	screensize       = v2u32(0, 0);
 	displaycenter    = v2s32(0, 0);
 	hotbar_imagesize = 48;
-	
+
+#ifdef HAVE_TOUCHSCREENGUI
+	if (touchscreengui)
+		hotbar_imagesize = touchscreengui->getHotbarImageSize();
+#endif
+
 	tsrc = gamedef->getTextureSource();
-	
+
 	v3f crosshair_color = g_settings->getV3F("crosshair_color");
 	u32 cross_r = rangelim(myround(crosshair_color.X), 0, 255);
 	u32 cross_g = rangelim(myround(crosshair_color.Y), 0, 255);
 	u32 cross_b = rangelim(myround(crosshair_color.Z), 0, 255);
 	u32 cross_a = rangelim(g_settings->getS32("crosshair_alpha"), 0, 255);
 	crosshair_argb = video::SColor(cross_a, cross_r, cross_g, cross_b);
-	
+
 	v3f selectionbox_color = g_settings->getV3F("selectionbox_color");
 	u32 sbox_r = rangelim(myround(selectionbox_color.X), 0, 255);
 	u32 sbox_g = rangelim(myround(selectionbox_color.Y), 0, 255);
 	u32 sbox_b = rangelim(myround(selectionbox_color.Z), 0, 255);
 	selectionbox_argb = video::SColor(255, sbox_r, sbox_g, sbox_b);
-	
+
 	use_crosshair_image = tsrc->isKnownSourceImage("crosshair.png");
 
 	hotbar_image = "";
@@ -79,6 +87,11 @@ Hud::Hud(video::IVideoDriver *driver, scene::ISceneManager* smgr,
 void Hud::drawItem(v2s32 upperleftpos, s32 imgsize, s32 itemcount,
 		InventoryList *mainlist, u16 selectitem, u16 direction)
 {
+#ifdef HAVE_TOUCHSCREENGUI
+	if (touchscreengui)
+		touchscreengui->resetHud();
+#endif
+
 	s32 padding = imgsize / 12;
 	s32 height  = imgsize + padding * 2;
 	s32 width   = itemcount * (imgsize + padding * 2);
@@ -143,9 +156,9 @@ void Hud::drawItem(v2s32 upperleftpos, s32 imgsize, s32 itemcount,
 				steppos = v2s32(padding, -(padding + i * fullimglen));
 				break;
 			default:
-				steppos = v2s32(padding + i * fullimglen, padding);	
+				steppos = v2s32(padding + i * fullimglen, padding);
 		}
-			
+
 		core::rect<s32> rect = imgrect + pos + steppos;
 
 		if (selectitem == i + 1) {
@@ -217,6 +230,10 @@ void Hud::drawItem(v2s32 upperleftpos, s32 imgsize, s32 itemcount,
 		if (!use_hotbar_image)
 			driver->draw2DRectangle(bgcolor2, rect, NULL);
 		drawItemStack(driver, font, item, rect, NULL, gamedef);
+#ifdef HAVE_TOUCHSCREENGUI
+		if (touchscreengui)
+			touchscreengui->registerHudItem(i, rect);
+#endif
 	}
 }
 
@@ -226,7 +243,7 @@ void Hud::drawLuaElements() {
 		HudElement *e = player->hud[i];
 		if (!e)
 			continue;
-		
+
 		v2s32 pos(e->pos.X * screensize.X, e->pos.Y * screensize.Y);
 		switch (e->type) {
 			case HUD_ELEM_IMAGE: {
@@ -309,11 +326,11 @@ void Hud::drawLuaElements() {
 void Hud::drawStatbar(v2s32 pos, u16 corner, u16 drawdir, std::string texture, s32 count, v2s32 offset) {
 	const video::SColor color(255, 255, 255, 255);
 	const video::SColor colors[] = {color, color, color, color};
-	
+
 	video::ITexture *stat_texture = tsrc->getTexture(texture);
 	if (!stat_texture)
 		return;
-		
+
 	core::dimension2di srcd(stat_texture->getOriginalSize());
 
 	v2s32 p = pos;
@@ -334,11 +351,11 @@ void Hud::drawStatbar(v2s32 pos, u16 corner, u16 drawdir, std::string texture, s
 			steppos = v2s32(0, -1);
 			break;
 		default:
-			steppos = v2s32(1, 0);	
+			steppos = v2s32(1, 0);
 	}
 	steppos.X *= srcd.Width;
 	steppos.Y *= srcd.Height;
-	
+
 	for (s32 i = 0; i < count / 2; i++)
 	{
 		core::rect<s32> srcrect(0, 0, srcd.Width, srcd.Height);
@@ -348,7 +365,7 @@ void Hud::drawStatbar(v2s32 pos, u16 corner, u16 drawdir, std::string texture, s
 		driver->draw2DImage(stat_texture, dstrect, srcrect, NULL, colors, true);
 		p += steppos;
 	}
-	
+
 	if (count % 2 == 1)
 	{
 		core::rect<s32> srcrect(0, 0, srcd.Width / 2, srcd.Height);
@@ -366,12 +383,12 @@ void Hud::drawHotbar(v2s32 centerlowerpos, s32 halfheartcount, u16 playeritem, s
 		errorstream << "draw_hotbar(): mainlist == NULL" << std::endl;
 		return;
 	}
-	
+
 	s32 hotbar_itemcount = player->hud_hotbar_itemcount;
 	s32 padding = hotbar_imagesize / 12;
 	s32 width = hotbar_itemcount * (hotbar_imagesize + padding * 2);
 	v2s32 pos = centerlowerpos - v2s32(width / 2, hotbar_imagesize + padding * 3);
-	
+
 	if (player->hud_flags & HUD_FLAG_HOTBAR_VISIBLE)
 		drawItem(pos, hotbar_imagesize, hotbar_itemcount, mainlist, playeritem + 1, 0);
 	if (player->hud_flags & HUD_FLAG_HEALTHBAR_VISIBLE)
@@ -386,7 +403,7 @@ void Hud::drawHotbar(v2s32 centerlowerpos, s32 halfheartcount, u16 playeritem, s
 void Hud::drawCrosshair() {
 	if (!(player->hud_flags & HUD_FLAG_CROSSHAIR_VISIBLE))
 		return;
-		
+
 	if (use_crosshair_image) {
 		video::ITexture *crosshair = tsrc->getTexture("crosshair.png");
 		v2u32 size  = crosshair->getOriginalSize();
@@ -420,6 +437,10 @@ void Hud::resizeHotbar() {
 		hotbar_imagesize = 48;
 	else
 		hotbar_imagesize = 64;
+#ifdef HAVE_TOUCHSCREENGUI
+	if (touchscreengui)
+		hotbar_imagesize = touchscreengui->getHotbarImageSize();
+#endif
 }
 
 void drawItemStack(video::IVideoDriver *driver,
@@ -431,7 +452,7 @@ void drawItemStack(video::IVideoDriver *driver,
 {
 	if(item.empty())
 		return;
-	
+
 	const ItemDefinition &def = item.getDefinition(gamedef->idef());
 	video::ITexture *texture = gamedef->idef()->getInventoryTexture(def.name, gamedef);
 
