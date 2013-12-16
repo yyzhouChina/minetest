@@ -1713,8 +1713,6 @@ void the_game(
 
 		// Hilight boxes collected during the loop and displayed
 		std::vector<aabb3f> hilightboxes;
-<<<<<<< HEAD
-=======
 
 		// Info text
 		std::wstring infotext;
@@ -1731,7 +1729,6 @@ void the_game(
 				client.printDebugInfo(infostream);
 			}
 		}
->>>>>>> Touchscreen GUI WIP.
 
 		/* reset infotext */
 		infotext = L"";
@@ -1814,6 +1811,9 @@ void the_game(
 			menu->setFormSource(src);
 			menu->setTextDest(new TextDestPlayerInventory(&client));
 			menu->drop();
+
+			if (touchscreengui)
+				touchscreengui->Hide();
 		}
 		else if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey))
 		{
