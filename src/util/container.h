@@ -261,6 +261,10 @@ public:
 		m_list.push_back(t);
 		m_size.Post();
 	}
+
+	/* this version of pop_front returns a empty element of T on timeout.
+	 * Make sure default constructor of T creates a recognizable "empty" element
+	 */
 	T pop_front(u32 wait_time_max_ms)
 	{
 		if (m_size.Wait(wait_time_max_ms))
@@ -274,7 +278,7 @@ public:
 		}
 		else
 		{
-			throw ItemNotFoundException("MutexedQueue: queue is empty");
+			return T();
 		}
 	}
 	T pop_front()
@@ -304,6 +308,27 @@ public:
 		else
 		{
 			throw ItemNotFoundException("MutexedQueue: queue is empty");
+		}
+	}
+
+	/* this version of pop_back returns a empty element of T on timeout.
+	 * Make sure default constructor of T creates a recognizable "empty" element
+	 */
+	T pop_backNE(u32 wait_time_max_ms=0)
+	{
+		if (m_size.Wait(wait_time_max_ms))
+		{
+			JMutexAutoLock lock(m_mutex);
+
+			typename std::list<T>::iterator last = m_list.end();
+			last--;
+			T t = *last;
+			m_list.erase(last);
+			return t;
+		}
+		else
+		{
+			return T();
 		}
 	}
 
