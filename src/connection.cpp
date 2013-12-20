@@ -1039,10 +1039,6 @@ void ConnectionSendThread::sendToAll(u8 channelnum, SharedBuffer<u8> data, bool 
 
 void ConnectionSendThread::sendPackets(float dtime)
 {
-	/* TODO clean up this mess */
-	/* find a way to not lock app peers while sending packets to a single one */
-	JMutexAutoLock(m_connection->m_peers_mutex);
-
 	std::list<u16> peerIds = m_connection->getPeerIDs();
 
 	for(std::list<u16>::iterator
@@ -1101,7 +1097,10 @@ void ConnectionSendThread::sendPackets(float dtime)
 				j = peerIds.begin();
 				j != peerIds.end(); ++j)
 	{
-		PeerHelper peer = m_connection->getPeer(*j);
+		PeerHelper peer = m_connection->getPeerNoEx(*j);
+
+		if(!peer)
+			continue;
 		peer->m_sendtime_accu -= (float)peer->m_num_sent /
 				peer->m_max_packets_per_second;
 		if(peer->m_sendtime_accu > 10. / peer->m_max_packets_per_second)

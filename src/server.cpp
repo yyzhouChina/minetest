@@ -2025,7 +2025,7 @@ void Server::SendBlockNoLock(u16 peer_id, MapBlock *block, u8 ver, u16 net_proto
 	/*
 		Send packet
 	*/
-	m_con.Send(peer_id, 3, reply, true);
+	m_con.Send(peer_id, 2, reply, true);
 }
 
 void Server::SendBlocks(float dtime)
@@ -2245,7 +2245,7 @@ void Server::sendMediaAnnouncement(u16 peer_id)
 	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
 
 	// Send as reliable
-	m_con.Send(peer_id, 2, data, true);
+	m_con.Send(peer_id, 1, data, true);
 }
 
 void Server::sendRequestedMedia(u16 peer_id,
@@ -2361,7 +2361,7 @@ void Server::sendRequestedMedia(u16 peer_id,
 				<<" size=" <<s.size()<<std::endl;
 		SharedBuffer<u8> data((u8*)s.c_str(), s.size());
 		// Send as reliable
-		m_con.Send(peer_id, 3, data, true);
+		m_con.Send(peer_id, 2, data, true);
 	}
 }
 

@@ -583,7 +583,7 @@ void Client::step(float dtime)
 					writeV3S16(&reply[2+1+6*k], *j);
 					k++;
 				}
-				m_con.Send(PEER_ID_SERVER, 3, reply, true);
+				m_con.Send(PEER_ID_SERVER, 2, reply, true);
 
 				if(i == deleted_blocks.end())
 					break;
@@ -731,7 +731,7 @@ void Client::step(float dtime)
 				reply[2] = 1;
 				writeV3S16(&reply[3], r.p);
 				// Send as reliable
-				m_con.Send(PEER_ID_SERVER, 3, reply, true);
+				m_con.Send(PEER_ID_SERVER, 2, reply, true);
 			}
 		}
 		if(num_processed_meshes > 0)

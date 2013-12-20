@@ -196,10 +196,10 @@ sender_peer_id:
 	these constants are defined in constants.h
 channel:
 	The lower the number, the higher the priority is.
-	Only channels 0, 1, 2 and 3 exist.
+	Only channels 0, 1 and 2 exist.
 */
 #define BASE_HEADER_SIZE 7
-#define CHANNEL_COUNT 4
+#define CHANNEL_COUNT 3
 /*
 Packet types:
 
