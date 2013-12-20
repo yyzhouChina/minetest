@@ -265,7 +265,7 @@ public:
 	/* this version of pop_front returns a empty element of T on timeout.
 	 * Make sure default constructor of T creates a recognizable "empty" element
 	 */
-	T pop_front(u32 wait_time_max_ms)
+	T pop_frontNE(u32 wait_time_max_ms)
 	{
 		if (m_size.Wait(wait_time_max_ms))
 		{
@@ -281,6 +281,24 @@ public:
 			return T();
 		}
 	}
+
+	T pop_front(u32 wait_time_max_ms)
+	{
+		if (m_size.Wait(wait_time_max_ms))
+		{
+			JMutexAutoLock lock(m_mutex);
+
+			typename std::list<T>::iterator begin = m_list.begin();
+			T t = *begin;
+			m_list.erase(begin);
+			return t;
+		}
+		else
+		{
+			throw ItemNotFoundException("MutexedQueue: queue is empty");
+		}
+	}
+
 	T pop_front()
 	{
 		m_size.Wait();

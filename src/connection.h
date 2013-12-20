@@ -196,10 +196,10 @@ sender_peer_id:
 	these constants are defined in constants.h
 channel:
 	The lower the number, the higher the priority is.
-	Only channels 0, 1 and 2 exist.
+	Only channels 0, 1, 2 and 3 exist.
 */
 #define BASE_HEADER_SIZE 7
-#define CHANNEL_COUNT 3
+#define CHANNEL_COUNT 4
 /*
 Packet types:
 
@@ -276,9 +276,7 @@ class ReliablePacketBuffer
 public:
 	ReliablePacketBuffer();
 	void print();
-	bool empty();
 	u32 size();
-	RPBSearchResult findPacket(u16 seqnum);
 	RPBSearchResult notFound();
 	bool getFirstSeqnum(u16 *result);
 	BufferedPacket popFirst();
@@ -288,10 +286,15 @@ public:
 	void resetTimedOuts(float timeout);
 	bool anyTotaltimeReached(float timeout);
 	std::list<BufferedPacket> getTimedOuts(float timeout);
+	bool empty();
 
 private:
+	RPBSearchResult findPacket(u16 seqnum);
+
 	std::list<BufferedPacket> m_list;
 	u16 m_list_size;
+
+	JMutex m_list_mutex;
 };
 
 /*
@@ -313,14 +316,20 @@ public:
 private:
 	// Key is seqnum
 	std::map<u16, IncomingSplitPacket*> m_buf;
+
+	JMutex m_map_mutex;
 };
 
 class Connection;
+
+#define RELIABLE_WINDOW_SIZE 256
 
 struct Channel
 {
 	Channel();
 	~Channel();
+
+	//TODO is there a lock required around this numbers?
 
 	u16 next_outgoing_seqnum;
 	u16 next_incoming_seqnum;
@@ -331,9 +340,14 @@ struct Channel
 	ReliablePacketBuffer incoming_reliables;
 	// This is for buffering the sent packets so that the sender can
 	// re-send them if no ACK is received
-	ReliablePacketBuffer outgoing_reliables;
+	ReliablePacketBuffer outgoing_reliables_sent;
+
+	//queued reliable packets
+	Queue<BufferedPacket> queued_reliables;
 
 	IncomingSplitBuffer incoming_splits;
+
+	JMutex m_channel_mutex;
 };
 
 class Peer;
@@ -360,9 +374,27 @@ public:
 	virtual void deletingPeer(Peer *peer, bool timeout) = 0;
 };
 
+class PeerHelper
+{
+public:
+	PeerHelper();
+	PeerHelper(Peer* peer);
+	~PeerHelper();
+
+	PeerHelper&   operator=(Peer* peer);
+	Peer*         operator->() const;
+	bool          operator!();
+	bool          operator!=(void* ptr);
+
+private:
+	Peer* m_peer;
+};
+
 class Peer
 {
 public:
+
+	friend class PeerHelper;
 
 	Peer(u16 a_id, Address a_address);
 	virtual ~Peer();
@@ -401,7 +433,18 @@ public:
 	float congestion_control_aim_rtt;
 	float congestion_control_max_rate;
 	float congestion_control_min_rate;
+
+	bool Ping(float dtime,SharedBuffer<u8>& data);
+
+	void Drop();
+
+protected:
+	bool IncUseCount();
+	void DecUseCount();
 private:
+	JMutex m_usage_mutex;
+	unsigned int m_usage;
+	bool m_pending_deletion;
 };
 
 /*
@@ -493,6 +536,8 @@ enum ConnectionCommandType{
 	CONNCMD_SEND,
 	CONNCMD_SEND_TO_ALL,
 	CONNCMD_DELETE_PEER,
+	CONCMD_ACK,
+	CONCMD_CREATE_PEER,
 };
 
 struct ConnectionCommand
@@ -542,19 +587,112 @@ struct ConnectionCommand
 		type = CONNCMD_DELETE_PEER;
 		peer_id = peer_id_;
 	}
+
+	void ack(u16 peer_id_, u8 channelnum_, SharedBuffer<u8> data_)
+	{
+		type = CONCMD_ACK;
+		peer_id = peer_id_;
+		channelnum = channelnum_;
+		data = data_;
+		reliable = false;
+	}
+
+	void createPeer(u16 peer_id_, SharedBuffer<u8> data_)
+	{
+		type = CONCMD_CREATE_PEER;
+		peer_id = peer_id_;
+		data = data_;
+		channelnum = 0;
+		reliable = true;
+	}
 };
 
-class Connection: public JThread
+class ConnectionSendThread : public JThread {
+
+public:
+	ConnectionSendThread(Connection* parent,
+							unsigned int max_packet_size, float timeout);
+
+	void * Thread       ();
+
+private:
+	void runTimeouts    (float dtime);
+	void rawSend        (const BufferedPacket &packet);
+	bool rawSendAsPacket(u16 peer_id, u8 channelnum,
+							SharedBuffer<u8> data, bool reliable);
+
+	void processCommand (ConnectionCommand &c);
+	void serve          (u16 port);
+	void connect        (Address address);
+	void disconnect     ();
+	void send           (u16 peer_id, u8 channelnum,
+							SharedBuffer<u8> data, bool reliable);
+	void sendToAll      (u8 channelnum,
+							SharedBuffer<u8> data, bool reliable);
+
+	void sendPackets    (float dtime);
+
+	void sendAsPacket   (u16 peer_id, u8 channelnum,
+							SharedBuffer<u8> data, bool reliable);
+
+	void sendReliable(BufferedPacket& p, Channel* channel);
+
+	Connection*           m_connection;
+	unsigned int          m_max_packet_size;
+	float                 m_timeout;
+	Queue<OutgoingPacket> m_outgoing_queue;
+};
+
+class ConnectionReceiveThread : public JThread {
+public:
+	ConnectionReceiveThread(Connection* parent,
+							unsigned int max_packet_size);
+
+	void * Thread       ();
+
+private:
+	void receive        ();
+
+	// Returns next data from a buffer if possible
+	// If found, returns true; if not, false.
+	// If found, sets peer_id and dst
+	bool getFromBuffers (u16 &peer_id, SharedBuffer<u8> &dst);
+
+	bool checkIncomingBuffers(Channel *channel, u16 &peer_id,
+							SharedBuffer<u8> &dst);
+
+	/*
+		Processes a packet with the basic header stripped out.
+		Parameters:
+			packetdata: Data in packet (with no base headers)
+			peer_id: peer id of the sender of the packet in question
+			channelnum: channel on which the packet was sent
+			reliable: true if recursing into a reliable packet
+	*/
+	SharedBuffer<u8> processPacket(Channel *channel,
+							SharedBuffer<u8> packetdata, u16 peer_id,
+							u8 channelnum, bool reliable);
+
+
+	Connection*           m_connection;
+	unsigned int          m_max_packet_size;
+
+	//check what this is used for?
+	u16                   m_indentation;
+};
+
+class Connection
 {
 public:
+	friend class ConnectionSendThread;
+	friend class ConnectionReceiveThread;
+
 	Connection(u32 protocol_id, u32 max_packet_size, float timeout, bool ipv6);
 	Connection(u32 protocol_id, u32 max_packet_size, float timeout, bool ipv6,
 			PeerHandler *peerhandler);
 	~Connection();
-	void * Thread();
 
 	/* Interface */
-
 	ConnectionEvent getEvent();
 	ConnectionEvent waitEvent(u32 timeout_ms);
 	void putCommand(ConnectionCommand &c);
@@ -572,68 +710,53 @@ public:
 	Address GetPeerAddress(u16 peer_id);
 	float GetPeerAvgRTT(u16 peer_id);
 	void DeletePeer(u16 peer_id);
-	
-private:
-	void putEvent(ConnectionEvent &e);
-	void processCommand(ConnectionCommand &c);
-	void send(float dtime);
-	void receive();
-	void runTimeouts(float dtime);
-	void serve(u16 port);
-	void connect(Address address);
-	void disconnect();
-	void sendToAll(u8 channelnum, SharedBuffer<u8> data, bool reliable);
-	void send(u16 peer_id, u8 channelnum, SharedBuffer<u8> data, bool reliable);
-	void sendAsPacket(u16 peer_id, u8 channelnum,
-			SharedBuffer<u8> data, bool reliable);
-	void rawSendAsPacket(u16 peer_id, u8 channelnum,
-			SharedBuffer<u8> data, bool reliable);
-	void rawSend(const BufferedPacket &packet);
-	Peer* getPeer(u16 peer_id);
-	Peer* getPeerNoEx(u16 peer_id);
-	std::list<Peer*> getPeers();
-	bool getFromBuffers(u16 &peer_id, SharedBuffer<u8> &dst);
-	// Returns next data from a buffer if possible
-	// If found, returns true; if not, false.
-	// If found, sets peer_id and dst
-	bool checkIncomingBuffers(Channel *channel, u16 &peer_id,
-			SharedBuffer<u8> &dst);
-	/*
-		Processes a packet with the basic header stripped out.
-		Parameters:
-			packetdata: Data in packet (with no base headers)
-			peer_id: peer id of the sender of the packet in question
-			channelnum: channel on which the packet was sent
-			reliable: true if recursing into a reliable packet
-	*/
-	SharedBuffer<u8> processPacket(Channel *channel,
-			SharedBuffer<u8> packetdata, u16 peer_id,
-			u8 channelnum, bool reliable);
+
+protected:
+	PeerHelper getPeer(u16 peer_id);
+	PeerHelper getPeerNoEx(u16 peer_id);
+	u16   lookupPeer(Address& sender);
+
+	u16 createPeer(Address& sender);
+	Peer* createServerPeer(Address& sender);
 	bool deletePeer(u16 peer_id, bool timeout);
-	
-	Queue<OutgoingPacket> m_outgoing_queue;
-	MutexedQueue<ConnectionEvent> m_event_queue;
-	MutexedQueue<ConnectionCommand> m_command_queue;
-	
-	u32 m_protocol_id;
-	u32 m_max_packet_size;
-	float m_timeout;
+
+	u32 GetProtocolID(){ return m_protocol_id; }
+
+	void SetPeerID(u16 id){ m_peer_id = id; }
+
+	void sendAck(u16 peer_id, u8 channelnum, u16 seqnum);
+
+	void PrintInfo(std::ostream &out);
+	void PrintInfo();
+
+	std::list<u16> getPeerIDs();
+
+	std::string getDesc();
+
 	UDPSocket m_socket;
+	MutexedQueue<ConnectionCommand> m_command_queue;
+
+	void putEvent(ConnectionEvent &e);
+
+private:
+	std::list<Peer*> getPeers();
+
+	MutexedQueue<ConnectionEvent> m_event_queue;
+
 	u16 m_peer_id;
+	u32 m_protocol_id;
 	
 	std::map<u16, Peer*> m_peers;
 	JMutex m_peers_mutex;
 
+	ConnectionSendThread m_sendThread;
+	ConnectionReceiveThread m_receiveThread;
+
+	JMutex m_info_mutex;
+
 	// Backwards compatibility
 	PeerHandler *m_bc_peerhandler;
 	int m_bc_receive_timeout;
-	
-	void SetPeerID(u16 id){ m_peer_id = id; }
-	u32 GetProtocolID(){ return m_protocol_id; }
-	void PrintInfo(std::ostream &out);
-	void PrintInfo();
-	std::string getDesc();
-	u16 m_indentation;
 };
 
 } // namespace
