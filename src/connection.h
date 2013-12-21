@@ -287,7 +287,7 @@ public:
 	bool anyTotaltimeReached(float timeout);
 	std::list<BufferedPacket> getTimedOuts(float timeout);
 	bool empty();
-
+	bool containsPacket(u16 seqnum);
 private:
 	RPBSearchResult findPacket(u16 seqnum);
 
@@ -361,7 +361,7 @@ struct ConnectionCommand
 	Buffer<u8> data;
 	bool reliable;
 
-	ConnectionCommand(): type(CONNCMD_NONE) {}
+	ConnectionCommand(): type(CONNCMD_NONE), reliable(false) {}
 
 	void serve(u16 port_)
 	{
@@ -418,15 +418,10 @@ struct ConnectionCommand
 	}
 };
 
-class Connection;
-
-struct Channel
+class Channel
 {
-	Channel();
-	~Channel();
 
-	//TODO is there a lock required around this numbers?
-
+public:
 	u16 next_outgoing_seqnum;
 	u16 next_incoming_seqnum;
 	u16 next_outgoing_split_seqnum;
@@ -447,6 +442,28 @@ struct Channel
 	IncomingSplitBuffer incoming_splits;
 
 	JMutex m_channel_mutex;
+
+	Channel();
+	~Channel();
+
+	void UpdatePacketLossCounter(unsigned int count);
+	void UpdateBytesSent(unsigned int bytes);
+
+	void UpdateTimers(float dtime);
+
+	u16 getSequenceNumber();
+
+	const unsigned int getWindowSize() const { return window_size; };
+private:
+	JMutex m_internal_mutex;
+	unsigned int window_size;
+
+	unsigned int current_packet_loss;
+	float packet_loss_counter;
+
+	unsigned int current_bytes_transfered;
+	float max_bpm;
+	float bpm_counter;
 };
 
 class Peer;
@@ -489,6 +506,8 @@ private:
 	Peer* m_peer;
 };
 
+class Connection;
+
 class Peer
 {
 public:
@@ -524,6 +543,7 @@ public:
 	bool has_sent_with_id;
 	
 	float m_sendtime_accu;
+
 	int m_max_packets_per_second;
 	int m_num_sent;
 	int m_max_num_sent;
@@ -537,9 +557,6 @@ public:
 
 	void Drop();
 
-	void ReportPacketTimeout(unsigned int count);
-	void UpdateCongestionWindow(float dtime);
-
 	void PutReliableSendCommand(ConnectionCommand &c,
 					Connection* connection,
 					unsigned int max_packet_size);
@@ -550,12 +567,10 @@ protected:
 	bool IncUseCount();
 	void DecUseCount();
 private:
-	JMutex m_exclusive_access_mutex;
 	unsigned int m_usage;
 	bool m_pending_deletion;
 
-	unsigned int m_packet_loss;
-	float        m_congestion_window_update_timer;
+	JMutex m_exclusive_access_mutex;
 
 	void processReliableSendCommand(ConnectionCommand &c,
 					Connection* connection,
@@ -643,21 +658,24 @@ private:
 	bool rawSendAsPacket(u16 peer_id, u8 channelnum,
 							SharedBuffer<u8> data, bool reliable);
 
-	void processCommand (ConnectionCommand &c);
+	void processReliableCommand (ConnectionCommand &c);
+	void processNonReliableCommand (ConnectionCommand &c);
 	void serve          (u16 port);
 	void connect        (Address address);
 	void disconnect     ();
 	void send           (u16 peer_id, u8 channelnum,
-							SharedBuffer<u8> data, bool reliable);
+							SharedBuffer<u8> data);
+	void sendReliable   (ConnectionCommand &c);
 	void sendToAll      (u8 channelnum,
-							SharedBuffer<u8> data, bool reliable);
+							SharedBuffer<u8> data);
+	void sendToAllReliable(ConnectionCommand &c);
 
 	void sendPackets    (float dtime);
 
 	void sendAsPacket   (u16 peer_id, u8 channelnum,
-							SharedBuffer<u8> data, bool reliable, bool ack=false);
+							SharedBuffer<u8> data,bool ack=false);
 
-	void sendReliable(BufferedPacket& p, Channel* channel);
+	void sendAsPacketReliable(BufferedPacket& p, Channel* channel);
 
 	Connection*           m_connection;
 	unsigned int          m_max_packet_size;
