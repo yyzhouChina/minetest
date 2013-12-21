@@ -1051,7 +1051,7 @@ void Server::AsyncRunStep()
 				memcpy((char*)&reply[2], unreliable_data.c_str(),
 						unreliable_data.size());
 				// Send as unreliable
-				m_con.Send(client->peer_id, 0, reply, false);
+				m_con.Send(client->peer_id, 1, reply, false);
 			}
 
 			/*if(reliable_data.size() > 0 || unreliable_data.size() > 0)

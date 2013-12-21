@@ -320,9 +320,105 @@ private:
 	JMutex m_map_mutex;
 };
 
-class Connection;
+struct OutgoingPacket
+{
+	u16 peer_id;
+	u8 channelnum;
+	SharedBuffer<u8> data;
+	bool reliable;
+	bool ack;
 
-#define RELIABLE_WINDOW_SIZE 256
+	OutgoingPacket(u16 peer_id_, u8 channelnum_, SharedBuffer<u8> data_,
+			bool reliable_,bool ack_=false):
+		peer_id(peer_id_),
+		channelnum(channelnum_),
+		data(data_),
+		reliable(reliable_),
+		ack(ack_)
+	{
+	}
+};
+
+enum ConnectionCommandType{
+	CONNCMD_NONE,
+	CONNCMD_SERVE,
+	CONNCMD_CONNECT,
+	CONNCMD_DISCONNECT,
+	CONNCMD_SEND,
+	CONNCMD_SEND_TO_ALL,
+	CONNCMD_DELETE_PEER,
+	CONCMD_ACK,
+	CONCMD_CREATE_PEER,
+};
+
+struct ConnectionCommand
+{
+	enum ConnectionCommandType type;
+	u16 port;
+	Address address;
+	u16 peer_id;
+	u8 channelnum;
+	Buffer<u8> data;
+	bool reliable;
+
+	ConnectionCommand(): type(CONNCMD_NONE) {}
+
+	void serve(u16 port_)
+	{
+		type = CONNCMD_SERVE;
+		port = port_;
+	}
+	void connect(Address address_)
+	{
+		type = CONNCMD_CONNECT;
+		address = address_;
+	}
+	void disconnect()
+	{
+		type = CONNCMD_DISCONNECT;
+	}
+	void send(u16 peer_id_, u8 channelnum_,
+			SharedBuffer<u8> data_, bool reliable_)
+	{
+		type = CONNCMD_SEND;
+		peer_id = peer_id_;
+		channelnum = channelnum_;
+		data = data_;
+		reliable = reliable_;
+	}
+	void sendToAll(u8 channelnum_, SharedBuffer<u8> data_, bool reliable_)
+	{
+		type = CONNCMD_SEND_TO_ALL;
+		channelnum = channelnum_;
+		data = data_;
+		reliable = reliable_;
+	}
+	void deletePeer(u16 peer_id_)
+	{
+		type = CONNCMD_DELETE_PEER;
+		peer_id = peer_id_;
+	}
+
+	void ack(u16 peer_id_, u8 channelnum_, SharedBuffer<u8> data_)
+	{
+		type = CONCMD_ACK;
+		peer_id = peer_id_;
+		channelnum = channelnum_;
+		data = data_;
+		reliable = false;
+	}
+
+	void createPeer(u16 peer_id_, SharedBuffer<u8> data_)
+	{
+		type = CONCMD_CREATE_PEER;
+		peer_id = peer_id_;
+		data = data_;
+		channelnum = 0;
+		reliable = true;
+	}
+};
+
+class Connection;
 
 struct Channel
 {
@@ -344,6 +440,9 @@ struct Channel
 
 	//queued reliable packets
 	Queue<BufferedPacket> queued_reliables;
+
+	//queue commands prior splitting to packets
+	Queue<ConnectionCommand> queued_commands;
 
 	IncomingSplitBuffer incoming_splits;
 
@@ -425,7 +524,7 @@ public:
 	bool has_sent_with_id;
 	
 	float m_sendtime_accu;
-	float m_max_packets_per_second;
+	int m_max_packets_per_second;
 	int m_num_sent;
 	int m_max_num_sent;
 
@@ -438,35 +537,34 @@ public:
 
 	void Drop();
 
+	void ReportPacketTimeout(unsigned int count);
+	void UpdateCongestionWindow(float dtime);
+
+	void PutReliableSendCommand(ConnectionCommand &c,
+					Connection* connection,
+					unsigned int max_packet_size);
+	void RunCommandQueues(Connection* connection,
+					unsigned int max_packet_size);
+
 protected:
 	bool IncUseCount();
 	void DecUseCount();
 private:
-	JMutex m_usage_mutex;
+	JMutex m_exclusive_access_mutex;
 	unsigned int m_usage;
 	bool m_pending_deletion;
+
+	unsigned int m_packet_loss;
+	float        m_congestion_window_update_timer;
+
+	void processReliableSendCommand(ConnectionCommand &c,
+					Connection* connection,
+					unsigned int max_packet_size);
 };
 
 /*
 	Connection
 */
-
-struct OutgoingPacket
-{
-	u16 peer_id;
-	u8 channelnum;
-	SharedBuffer<u8> data;
-	bool reliable;
-
-	OutgoingPacket(u16 peer_id_, u8 channelnum_, SharedBuffer<u8> data_,
-			bool reliable_):
-		peer_id(peer_id_),
-		channelnum(channelnum_),
-		data(data_),
-		reliable(reliable_)
-	{
-	}
-};
 
 enum ConnectionEventType{
 	CONNEVENT_NONE,
@@ -528,93 +626,17 @@ struct ConnectionEvent
 	}
 };
 
-enum ConnectionCommandType{
-	CONNCMD_NONE,
-	CONNCMD_SERVE,
-	CONNCMD_CONNECT,
-	CONNCMD_DISCONNECT,
-	CONNCMD_SEND,
-	CONNCMD_SEND_TO_ALL,
-	CONNCMD_DELETE_PEER,
-	CONCMD_ACK,
-	CONCMD_CREATE_PEER,
-};
-
-struct ConnectionCommand
-{
-	enum ConnectionCommandType type;
-	u16 port;
-	Address address;
-	u16 peer_id;
-	u8 channelnum;
-	Buffer<u8> data;
-	bool reliable;
-	
-	ConnectionCommand(): type(CONNCMD_NONE) {}
-
-	void serve(u16 port_)
-	{
-		type = CONNCMD_SERVE;
-		port = port_;
-	}
-	void connect(Address address_)
-	{
-		type = CONNCMD_CONNECT;
-		address = address_;
-	}
-	void disconnect()
-	{
-		type = CONNCMD_DISCONNECT;
-	}
-	void send(u16 peer_id_, u8 channelnum_,
-			SharedBuffer<u8> data_, bool reliable_)
-	{
-		type = CONNCMD_SEND;
-		peer_id = peer_id_;
-		channelnum = channelnum_;
-		data = data_;
-		reliable = reliable_;
-	}
-	void sendToAll(u8 channelnum_, SharedBuffer<u8> data_, bool reliable_)
-	{
-		type = CONNCMD_SEND_TO_ALL;
-		channelnum = channelnum_;
-		data = data_;
-		reliable = reliable_;
-	}
-	void deletePeer(u16 peer_id_)
-	{
-		type = CONNCMD_DELETE_PEER;
-		peer_id = peer_id_;
-	}
-
-	void ack(u16 peer_id_, u8 channelnum_, SharedBuffer<u8> data_)
-	{
-		type = CONCMD_ACK;
-		peer_id = peer_id_;
-		channelnum = channelnum_;
-		data = data_;
-		reliable = false;
-	}
-
-	void createPeer(u16 peer_id_, SharedBuffer<u8> data_)
-	{
-		type = CONCMD_CREATE_PEER;
-		peer_id = peer_id_;
-		data = data_;
-		channelnum = 0;
-		reliable = true;
-	}
-};
-
 class ConnectionSendThread : public JThread {
 
 public:
+	friend class Peer;
+
 	ConnectionSendThread(Connection* parent,
 							unsigned int max_packet_size, float timeout);
 
 	void * Thread       ();
 
+	void Trigger();
 private:
 	void runTimeouts    (float dtime);
 	void rawSend        (const BufferedPacket &packet);
@@ -633,7 +655,7 @@ private:
 	void sendPackets    (float dtime);
 
 	void sendAsPacket   (u16 peer_id, u8 channelnum,
-							SharedBuffer<u8> data, bool reliable);
+							SharedBuffer<u8> data, bool reliable, bool ack=false);
 
 	void sendReliable(BufferedPacket& p, Channel* channel);
 
@@ -641,6 +663,7 @@ private:
 	unsigned int          m_max_packet_size;
 	float                 m_timeout;
 	Queue<OutgoingPacket> m_outgoing_queue;
+	JSemaphore            m_send_sleep_semaphore;
 };
 
 class ConnectionReceiveThread : public JThread {
@@ -710,6 +733,8 @@ public:
 	Address GetPeerAddress(u16 peer_id);
 	float GetPeerAvgRTT(u16 peer_id);
 	void DeletePeer(u16 peer_id);
+	const u32 GetProtocolID() const { return m_protocol_id; };
+	const std::string getDesc();
 
 protected:
 	PeerHelper getPeer(u16 peer_id);
@@ -720,8 +745,6 @@ protected:
 	Peer* createServerPeer(Address& sender);
 	bool deletePeer(u16 peer_id, bool timeout);
 
-	u32 GetProtocolID(){ return m_protocol_id; }
-
 	void SetPeerID(u16 id){ m_peer_id = id; }
 
 	void sendAck(u16 peer_id, u8 channelnum, u16 seqnum);
@@ -730,8 +753,6 @@ protected:
 	void PrintInfo();
 
 	std::list<u16> getPeerIDs();
-
-	std::string getDesc();
 
 	UDPSocket m_socket;
 	MutexedQueue<ConnectionCommand> m_command_queue;

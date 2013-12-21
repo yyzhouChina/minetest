@@ -524,7 +524,7 @@ void Client::step(float dtime)
 			writeU16(&data[53], CLIENT_PROTOCOL_VERSION_MAX);
 
 			// Send as unreliable
-			Send(0, data, false);
+			Send(1, data, false);
 		}
 
 		// Not connected, return
