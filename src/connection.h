@@ -451,7 +451,8 @@ public:
 
 	void UpdateTimers(float dtime);
 
-	u16 getSequenceNumber();
+	u16 getSequenceNumber(bool& successfull);
+	bool putBackSequenceNumber(u16);
 
 	const unsigned int getWindowSize() const { return window_size; };
 private:
@@ -541,17 +542,8 @@ public:
 	// This is set to true when the peer has actually sent something
 	// with the id we have given to it
 	bool has_sent_with_id;
-	
+
 	float m_sendtime_accu;
-
-	int m_max_packets_per_second;
-	int m_num_sent;
-	int m_max_num_sent;
-
-	// Updated from configuration by Connection
-	float congestion_control_aim_rtt;
-	float congestion_control_max_rate;
-	float congestion_control_min_rate;
 
 	bool Ping(float dtime,SharedBuffer<u8>& data);
 
@@ -563,6 +555,15 @@ public:
 	void RunCommandQueues(Connection* connection,
 					unsigned int max_packet_size);
 
+	unsigned int getMaxUnreliablesPerSecond();
+
+	void UpdateMaxUnreliables(float dtime);
+	void UpdatePacketLossCounter(unsigned int count);
+
+	unsigned int m_num_sendable;
+	unsigned int m_num_sent;
+	float        m_sendable_accu;
+
 protected:
 	bool IncUseCount();
 	void DecUseCount();
@@ -572,9 +573,14 @@ private:
 
 	JMutex m_exclusive_access_mutex;
 
-	void processReliableSendCommand(ConnectionCommand &c,
+	bool processReliableSendCommand(ConnectionCommand &c,
 					Connection* connection,
 					unsigned int max_packet_size);
+
+	float m_window_adapt_accu;
+	int m_max_packets_per_second;
+
+	int m_packets_lost;
 };
 
 /*

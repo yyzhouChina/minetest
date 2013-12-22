@@ -201,6 +201,12 @@ public:
 		++m_list_size;
 	}
 	
+	void push_front(T t)
+	{
+		m_list.push_front(t);
+		++m_list_size;
+	}
+
 	T pop_front()
 	{
 		if(m_list.empty())
