@@ -27,6 +27,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/pointer.h"
 #include "util/container.h"
 #include "util/thread.h"
+#include "util/numeric.h"
 #include <iostream>
 #include <fstream>
 #include <list>
@@ -110,6 +111,14 @@ public:
 	{}
 };
 
+class ProcessedQueued : public BaseException
+{
+public:
+	ProcessedQueued(const char *s):
+		BaseException(s)
+	{}
+};
+
 #define SEQNUM_MAX 65535
 inline bool seqnum_higher(u16 higher, u16 lower)
 {
@@ -117,6 +126,21 @@ inline bool seqnum_higher(u16 higher, u16 lower)
 		return true;
 	}
 	return (higher > lower);
+}
+
+inline bool seqnum_in_window(u16 seqnum, u16 next,u16 window_size)
+{
+	u16 window_start = next;
+	u16 window_end   = ( next + window_size ) % (SEQNUM_MAX+1);
+
+	if (window_start < window_end)
+	{
+		return ((seqnum >= window_start) && (seqnum < window_end));
+	}
+	else
+	{
+		return ((seqnum < window_end) || (seqnum >= window_start));
+	}
 }
 
 struct BufferedPacket
@@ -281,20 +305,29 @@ public:
 	bool getFirstSeqnum(u16 *result);
 	BufferedPacket popFirst();
 	BufferedPacket popSeqnum(u16 seqnum);
-	void insert(BufferedPacket &p);
+	void insert(BufferedPacket &p,u16 next_expected);
 	void incrementTimeouts(float dtime);
-	void resetTimedOuts(float timeout);
 	bool anyTotaltimeReached(float timeout);
-	std::list<BufferedPacket> getTimedOuts(float timeout);
+	std::list<BufferedPacket> getTimedOuts(float timeout,
+			unsigned int max_packets);
 	bool empty();
 	bool containsPacket(u16 seqnum);
+
+	void dump();
+
+	bool getOldestQueuedSequenceNumber(u16& result);
 private:
 	RPBSearchResult findPacket(u16 seqnum);
 
 	std::list<BufferedPacket> m_list;
 	u16 m_list_size;
 
+	u16 m_oldest_non_answered_ack;
+
 	JMutex m_list_mutex;
+
+	unsigned int writeptr;
+	u16 m_insert_trace[1024];
 };
 
 /*
@@ -422,9 +455,15 @@ class Channel
 {
 
 public:
-	u16 next_outgoing_seqnum;
-	u16 next_incoming_seqnum;
-	u16 next_outgoing_split_seqnum;
+	u16 readNextIncomingSeqNum();
+	u16 incNextIncomingSeqNum();
+
+	u16 getOutgoingSequenceNumber(bool& successfull);
+	u16 readOutgoingSequenceNumber();
+	bool putBackSequenceNumber(u16);
+
+	u16 readNextSplitSeqNum();
+	void setNextSplitSeqNum(u16 seqnum);
 	
 	// This is for buffering the incoming packets that are coming in
 	// the wrong order
@@ -441,25 +480,27 @@ public:
 
 	IncomingSplitBuffer incoming_splits;
 
-	JMutex m_channel_mutex;
-
 	Channel();
 	~Channel();
 
 	void UpdatePacketLossCounter(unsigned int count);
+	void UpdatePacketTooLateCounter();
 	void UpdateBytesSent(unsigned int bytes);
 
 	void UpdateTimers(float dtime);
-
-	u16 getSequenceNumber(bool& successfull);
-	bool putBackSequenceNumber(u16);
 
 	const unsigned int getWindowSize() const { return window_size; };
 private:
 	JMutex m_internal_mutex;
 	unsigned int window_size;
 
+	u16 next_incoming_seqnum;
+
+	u16 next_outgoing_seqnum;
+	u16 next_outgoing_split_seqnum;
+
 	unsigned int current_packet_loss;
+	unsigned int current_packet_too_late;
 	float packet_loss_counter;
 
 	unsigned int current_bytes_transfered;
@@ -553,7 +594,9 @@ public:
 					Connection* connection,
 					unsigned int max_packet_size);
 	void RunCommandQueues(Connection* connection,
-					unsigned int max_packet_size);
+					unsigned int max_packet_size,
+					unsigned int maxcommands,
+					unsigned int maxtransfer);
 
 	unsigned int getMaxUnreliablesPerSecond();
 
@@ -688,6 +731,11 @@ private:
 	float                 m_timeout;
 	Queue<OutgoingPacket> m_outgoing_queue;
 	JSemaphore            m_send_sleep_semaphore;
+
+	unsigned int          m_iteration_packets_avaialble;
+	unsigned int          m_max_commands_per_iteration;
+	unsigned int          m_max_data_packets_per_iteration;
+	unsigned int          m_max_packets_requeued;
 };
 
 class ConnectionReceiveThread : public JThread {
@@ -723,9 +771,6 @@ private:
 
 	Connection*           m_connection;
 	unsigned int          m_max_packet_size;
-
-	//check what this is used for?
-	u16                   m_indentation;
 };
 
 class Connection
