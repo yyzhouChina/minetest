@@ -26,6 +26,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/numeric.h"
 #include "util/string.h"
 #include "settings.h"
+#include "profiler.h"
+#include "main.h" // for profiling
 
 namespace con
 {
@@ -37,6 +39,8 @@ JMutex log_message_mutex;
 	JMutexAutoLock loglock(log_message_mutex);                                 \
 	a;                                                                         \
 	}
+
+#define PROFILE(a) a
 
 #define MAX_RELIABLE_WINDOW_SIZE 0x8000
 #define MIN_RELIABLE_WINDOW_SIZE 0x4000
@@ -296,8 +300,8 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 	assert(seqnum_in_window(seqnum,next_expected,MAX_RELIABLE_WINDOW_SIZE));
 
 	m_insert_trace[writeptr][0] = seqnum;
-	m_insert_trace[writeptr][0] = next_expected;
-	writeptr = (writeptr+1) % (sizeof(m_insert_trace)/sizeof(u16));
+	m_insert_trace[writeptr][1] = next_expected;
+	writeptr = (writeptr+1) % (sizeof(m_insert_trace)/(sizeof(u16)*2));
 
 	++m_list_size;
 	assert(m_list_size <= SEQNUM_MAX+1);
@@ -1066,9 +1070,12 @@ void * ConnectionSendThread::Thread()
 	u32 curtime = porting::getTimeMs();
 	u32 lasttime = curtime;
 
+	PROFILE(std::stringstream ThreadIdentifier);
+	PROFILE(ThreadIdentifier << "ConnectionSend: [" << m_connection->getDesc() << "]");
 
 	while(!StopRequested()) {
 		BEGIN_DEBUG_EXCEPTION_HANDLER
+		PROFILE(ScopeProfiler sp(g_profiler, ThreadIdentifier.str(), SPT_AVG));
 
 		m_iteration_packets_avaialble = m_max_data_packets_per_iteration;
 
@@ -1124,6 +1131,10 @@ void ConnectionSendThread::runTimeouts(float dtime)
 
 		if (!peer)
 			continue;
+
+		PROFILE(std::stringstream peerIdentifier);
+		PROFILE(peerIdentifier << "runTimeouts[" << m_connection->getDesc() << ";" << *j << ";RELIABLE]");
+		PROFILE(ScopeProfiler peerprofiler(g_profiler, peerIdentifier.str(), SPT_AVG));
 
 		SharedBuffer<u8> data(2); // data for sending ping, required here because of goto
 
@@ -1522,7 +1533,9 @@ void ConnectionSendThread::sendPackets(float dtime)
 			LOG(dout_con<<m_connection->getDesc()<< " Peer not found: peer_id=" << *j << std::endl);
 			continue;
 		}
-
+		PROFILE(std::stringstream peerIdentifier);
+		PROFILE(peerIdentifier << "sendPackets[" << m_connection->getDesc() << ";" << *j << ";RELIABLE]");
+		PROFILE(ScopeProfiler peerprofiler(g_profiler, peerIdentifier.str(), SPT_AVG));
 		peer->m_num_sent = m_iteration_packets_avaialble/m_connection->m_peers.size();
 
 		LOG(dout_con<<m_connection->getDesc()
@@ -1647,8 +1660,12 @@ void * ConnectionReceiveThread::Thread()
 	LOG(dout_con<<m_connection->getDesc()
 			<<"ConnectionReceive thread started"<<std::endl);
 
+	PROFILE(std::stringstream ThreadIdentifier);
+	PROFILE(ThreadIdentifier << "ConnectionReceive: [" << m_connection->getDesc() << "]");
+
 	while(!StopRequested()) {
 		BEGIN_DEBUG_EXCEPTION_HANDLER
+		PROFILE(ScopeProfiler sp(g_profiler, ThreadIdentifier.str(), SPT_AVG));
 
 		/* receive packets */
 		receive();
