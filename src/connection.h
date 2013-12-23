@@ -300,7 +300,6 @@ class ReliablePacketBuffer
 public:
 	ReliablePacketBuffer();
 
-
 	bool getFirstSeqnum(u16& result);
 
 	BufferedPacket popFirst();
@@ -329,7 +328,7 @@ private:
 	JMutex m_list_mutex;
 
 	unsigned int writeptr;
-	u16 m_insert_trace[1024][2];
+	volatile u16 m_insert_trace[32][2];
 };
 
 /*
@@ -558,7 +557,7 @@ public:
 
 	friend class PeerHelper;
 
-	Peer(u16 a_id, Address a_address);
+	Peer(u16 a_id, Address a_address, Connection* connection);
 	virtual ~Peer();
 	
 	/*
@@ -593,9 +592,8 @@ public:
 	void Drop();
 
 	void PutReliableSendCommand(ConnectionCommand &c,
-					Connection* connection,
 					unsigned int max_packet_size);
-	void RunCommandQueues(Connection* connection,
+	void RunCommandQueues(
 					unsigned int max_packet_size,
 					unsigned int maxcommands,
 					unsigned int maxtransfer);
@@ -618,14 +616,16 @@ private:
 
 	JMutex m_exclusive_access_mutex;
 
-	bool processReliableSendCommand(ConnectionCommand &c,
-					Connection* connection,
+	bool processReliableSendCommand(
+					ConnectionCommand &c,
 					unsigned int max_packet_size);
 
 	float m_window_adapt_accu;
 	int m_max_packets_per_second;
 
 	int m_packets_lost;
+
+	Connection* m_connection;
 };
 
 /*

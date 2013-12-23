@@ -204,6 +204,7 @@ void ReliablePacketBuffer::print()
 		LOG(dout_con<<index<< ":" << s << std::endl);
 	}
 }
+
 bool ReliablePacketBuffer::empty()
 {
 	JMutexAutoLock listlock(m_list_mutex);
@@ -301,7 +302,7 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 
 	m_insert_trace[writeptr][0] = seqnum;
 	m_insert_trace[writeptr][1] = next_expected;
-	writeptr = (writeptr+1) % (sizeof(m_insert_trace)/(sizeof(u16)*2));
+	writeptr = (writeptr+1) % 32;
 
 	++m_list_size;
 	assert(m_list_size <= SEQNUM_MAX+1);
@@ -744,7 +745,7 @@ bool PeerHelper::operator!=(void* ptr)
 	return ((void*) m_peer != ptr);
 }
 
-Peer::Peer(u16 a_id, Address a_address):
+Peer::Peer(u16 a_id, Address a_address, Connection* connection):
 	address(a_address),
 	id(a_id),
 	timeout_counter(0.0),
@@ -760,9 +761,11 @@ Peer::Peer(u16 a_id, Address a_address):
 	m_pending_deletion(false),
 	m_window_adapt_accu(0.0),
 	m_max_packets_per_second(MIN_UNRELIABLE_WINDOW_SIZE),
-	m_packets_lost(0)
+	m_packets_lost(0),
+	m_connection(connection)
 {
 }
+
 Peer::~Peer()
 {
 	JMutexAutoLock usage_lock(m_exclusive_access_mutex);
@@ -839,35 +842,43 @@ void Peer::Drop()
 			return;
 	}
 
+	PROFILE(std::stringstream peerIdentifier1);
+	PROFILE(peerIdentifier1 << "runTimeouts[" << m_connection->getDesc() << ";" << id << ";RELIABLE]");
+	PROFILE(g_profiler->removeADD(peerIdentifier1.str()));
+	PROFILE(std::stringstream peerIdentifier2);
+	PROFILE(peerIdentifier2 << "sendPackets[" << m_connection->getDesc() << ";" << id << ";RELIABLE]");
+	PROFILE(ScopeProfiler peerprofiler(g_profiler, peerIdentifier2.str(), SPT_AVG));
+
 	delete this;
 }
 
-void Peer::PutReliableSendCommand(ConnectionCommand &c,Connection* connection,unsigned int max_packet_size)
+void Peer::PutReliableSendCommand(ConnectionCommand &c,
+		unsigned int max_packet_size)
 {
 	if ( channels[c.channelnum].queued_commands.empty() &&
 			/* don't queue more packets then window size */
 			(channels[c.channelnum].queued_reliables.size()
 			< (channels[c.channelnum].getWindowSize()/2)))
 	{
-		LOG(dout_con<<connection->getDesc()
+		LOG(dout_con<<m_connection->getDesc()
 				<<" processing reliable command for peer id: " << c.peer_id
 				<<" data size: " << c.data.getSize() << std::endl);
-		if (!processReliableSendCommand(c,connection,max_packet_size))
+		if (!processReliableSendCommand(c,max_packet_size))
 		{
 			channels[c.channelnum].queued_commands.push_back(c);
 		}
 	}
 	else
 	{
-		LOG(dout_con<<connection->getDesc()
+		LOG(dout_con<<m_connection->getDesc()
 				<<" Queueing reliable command for peer id: " << c.peer_id
 				<<" data size: " << c.data.getSize() <<std::endl);
 		channels[c.channelnum].queued_commands.push_back(c);
 	}
 }
 
-bool Peer::processReliableSendCommand(ConnectionCommand &c,
-				Connection* connection,
+bool Peer::processReliableSendCommand(
+				ConnectionCommand &c,
 				unsigned int max_packet_size)
 {
 	u32 chunksize_max = max_packet_size
@@ -905,7 +916,7 @@ bool Peer::processReliableSendCommand(ConnectionCommand &c,
 
 		// Add base headers and make a packet
 		BufferedPacket p = con::makePacket(address, reliable,
-				connection->GetProtocolID(), connection->GetPeerID(),
+				m_connection->GetProtocolID(), m_connection->GetPeerID(),
 				c.channelnum);
 
 		toadd.push_back(p);
@@ -943,7 +954,7 @@ bool Peer::processReliableSendCommand(ConnectionCommand &c,
 
 			assert(successfully_put_back_sequence_number);
 		}
-		LOG(dout_con<<connection->getDesc()
+		LOG(dout_con<<m_connection->getDesc()
 				<< " Windowsize exceeded on reliable sending " << c.data.getSize() << " bytes"
 				<< std::endl << "\t\tinitial_sequence_number: " << initial_sequence_number
 				<< std::endl << "\t\tgot at most            : " << packets_available << " packets"
@@ -953,7 +964,7 @@ bool Peer::processReliableSendCommand(ConnectionCommand &c,
 	}
 }
 
-void Peer::RunCommandQueues(Connection* connection,
+void Peer::RunCommandQueues(
 							unsigned int max_packet_size,
 							unsigned int maxcommands,
 							unsigned int maxtransfer)
@@ -969,10 +980,10 @@ void Peer::RunCommandQueues(Connection* connection,
 		{
 			try {
 				ConnectionCommand c = channels[i].queued_commands.pop_front();
-				LOG(dout_con<<connection->getDesc()
+				LOG(dout_con<<m_connection->getDesc()
 						<<" processing queued reliable command "<<std::endl);
-				if (!processReliableSendCommand(c,connection,max_packet_size)) {
-					LOG(dout_con<<connection->getDesc()
+				if (!processReliableSendCommand(c,max_packet_size)) {
+					LOG(dout_con<<m_connection->getDesc()
 							<< " Failed to queue packets for peer_id: " << c.peer_id
 							<< ", delaying sending of " << c.data.getSize() << " bytes" << std::endl);
 					channels[i].queued_commands.push_front(c);
@@ -1111,6 +1122,7 @@ void * ConnectionSendThread::Thread()
 		END_DEBUG_EXCEPTION_HANDLER(derr_con);
 	}
 
+	PROFILE(g_profiler->removeADD(ThreadIdentifier.str()));
 	return NULL;
 }
 
@@ -1214,7 +1226,7 @@ void ConnectionSendThread::runTimeouts(float dtime)
 		}
 
 		peer->UpdateMaxUnreliables(dtime);
-		peer->RunCommandQueues(m_connection,m_max_packet_size,
+		peer->RunCommandQueues(m_max_packet_size,
 								m_max_commands_per_iteration,
 								m_max_packets_requeued);
 	}
@@ -1491,7 +1503,7 @@ void ConnectionSendThread::sendReliable(ConnectionCommand &c)
 	if (!peer)
 		return;
 
-	peer->PutReliableSendCommand(c,m_connection,m_max_packet_size);
+	peer->PutReliableSendCommand(c,m_max_packet_size);
 }
 
 void ConnectionSendThread::sendToAll(u8 channelnum, SharedBuffer<u8> data)
@@ -1515,7 +1527,7 @@ void ConnectionSendThread::sendToAllReliable(ConnectionCommand &c)
 			i++)
 	{
 		PeerHelper peer = m_connection->getPeer(*i);
-		peer->PutReliableSendCommand(c,m_connection,m_max_packet_size);
+		peer->PutReliableSendCommand(c,m_max_packet_size);
 	}
 }
 
@@ -1672,7 +1684,7 @@ void * ConnectionReceiveThread::Thread()
 
 		END_DEBUG_EXCEPTION_HANDLER(derr_con);
 	}
-
+	PROFILE(g_profiler->removeADD(ThreadIdentifier.str()));
 	return NULL;
 }
 
@@ -2361,12 +2373,12 @@ u32 Connection::Receive(u16 &peer_id, SharedBuffer<u8> &data)
 			data = SharedBuffer<u8>(e.data);
 			return e.data.getSize();
 		case CONNEVENT_PEER_ADDED: {
-			Peer tmp(e.peer_id, e.address);
+			Peer tmp(e.peer_id, e.address, this);
 			if(m_bc_peerhandler)
 				m_bc_peerhandler->peerAdded(&tmp);
 			continue; }
 		case CONNEVENT_PEER_REMOVED: {
-			Peer tmp(e.peer_id, e.address);
+			Peer tmp(e.peer_id, e.address, this);
 			if(m_bc_peerhandler)
 				m_bc_peerhandler->deletingPeer(&tmp, e.timeout);
 			continue; }
@@ -2446,7 +2458,7 @@ u16 Connection::createPeer(Address& sender)
 			<<"createPeer(): giving peer_id="<<peer_id_new<<std::endl);
 
 	// Create a peer
-	Peer *peer = new Peer(peer_id_new, sender);
+	Peer *peer = new Peer(peer_id_new, sender, this);
 	m_peers_mutex.Lock();
 	m_peers[peer->id] = peer;
 	m_peers_mutex.Unlock();
@@ -2519,7 +2531,7 @@ Peer* Connection::createServerPeer(Address& address)
 		throw ConnectionException("Already connected to a server");
 	}
 
-	Peer *peer = new Peer(PEER_ID_SERVER, address);
+	Peer *peer = new Peer(PEER_ID_SERVER, address, this);
 
 	{
 		JMutexAutoLock lock(m_peers_mutex);
