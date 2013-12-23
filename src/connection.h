@@ -299,23 +299,25 @@ class ReliablePacketBuffer
 {
 public:
 	ReliablePacketBuffer();
-	void print();
-	u32 size();
-	RPBSearchResult notFound();
-	bool getFirstSeqnum(u16 *result);
+
+
+	bool getFirstSeqnum(u16& result);
+
 	BufferedPacket popFirst();
 	BufferedPacket popSeqnum(u16 seqnum);
 	void insert(BufferedPacket &p,u16 next_expected);
+
 	void incrementTimeouts(float dtime);
-	bool anyTotaltimeReached(float timeout);
 	std::list<BufferedPacket> getTimedOuts(float timeout,
 			unsigned int max_packets);
+
+	void print();
 	bool empty();
 	bool containsPacket(u16 seqnum);
+	RPBSearchResult notFound();
+	u32 size();
 
-	void dump();
 
-	bool getOldestQueuedSequenceNumber(u16& result);
 private:
 	RPBSearchResult findPacket(u16 seqnum);
 
@@ -327,7 +329,7 @@ private:
 	JMutex m_list_mutex;
 
 	unsigned int writeptr;
-	u16 m_insert_trace[1024];
+	u16 m_insert_trace[1024][2];
 };
 
 /*
