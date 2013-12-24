@@ -727,6 +727,8 @@ private:
 
 	void sendAsPacketReliable(BufferedPacket& p, Channel* channel);
 
+	bool packetsQueued();
+
 	Connection*           m_connection;
 	unsigned int          m_max_packet_size;
 	float                 m_timeout;

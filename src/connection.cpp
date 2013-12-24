@@ -1080,7 +1080,9 @@ void * ConnectionSendThread::Thread()
 	PROFILE(std::stringstream ThreadIdentifier);
 	PROFILE(ThreadIdentifier << "ConnectionSend: [" << m_connection->getDesc() << "]");
 
-	while(!StopRequested()) {
+	/* if stop is requested don't stop immediately but try to send all        */
+	/* packets first */
+	while(!StopRequested() || packetsQueued()) {
 		BEGIN_DEBUG_EXCEPTION_HANDLER
 		PROFILE(ScopeProfiler sp(g_profiler, ThreadIdentifier.str(), SPT_AVG));
 
@@ -1125,6 +1127,37 @@ void * ConnectionSendThread::Thread()
 void ConnectionSendThread::Trigger()
 {
 	m_send_sleep_semaphore.Post();
+}
+
+bool ConnectionSendThread::packetsQueued()
+{
+
+	if (this->m_outgoing_queue.size() > 0) return true;
+
+	std::list<u16> peerIds = m_connection->getPeerIDs();
+	for(std::list<u16>::iterator j = peerIds.begin();
+			j != peerIds.end(); ++j)
+	{
+		PeerHelper peer = m_connection->getPeer(*j);
+
+		if (!peer)
+			continue;
+
+		for(u16 i=0; i<CHANNEL_COUNT; i++)
+		{
+			Channel *channel = &peer->channels[i];
+
+			if ((channel->queued_commands.size() > 0) ||
+					(channel->queued_reliables.size() > 0) ||
+					(channel->outgoing_reliables_sent.size() > 0))
+			{
+				return true;
+			}
+		}
+	}
+
+
+	return false;
 }
 
 void ConnectionSendThread::runTimeouts(float dtime)
@@ -1454,8 +1487,16 @@ void ConnectionSendThread::disconnect()
 	writeU8(&data[0], TYPE_CONTROL);
 	writeU8(&data[1], CONTROLTYPE_DISCO);
 
+
 	// Send to all
-	sendToAll(0,data);
+	std::list<u16> peerids = m_connection->getPeerIDs();
+
+	for (std::list<u16>::iterator i = peerids.begin();
+			i != peerids.end();
+			i++)
+	{
+		sendAsPacket(*i, 0,data,false);
+	}
 }
 
 void ConnectionSendThread::send(u16 peer_id, u8 channelnum,
