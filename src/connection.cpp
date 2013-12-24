@@ -202,9 +202,9 @@ void ReliablePacketBuffer::print()
 	{
 		u16 s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
 		LOG(dout_con<<index<< ":" << s << std::endl);
+		index++;
 	}
 }
-
 bool ReliablePacketBuffer::empty()
 {
 	JMutexAutoLock listlock(m_list_mutex);
@@ -299,10 +299,7 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 	u16 seqnum = readU16(&p.data[BASE_HEADER_SIZE+1]);
 
 	assert(seqnum_in_window(seqnum,next_expected,MAX_RELIABLE_WINDOW_SIZE));
-
-	m_insert_trace[writeptr][0] = seqnum;
-	m_insert_trace[writeptr][1] = next_expected;
-	writeptr = (writeptr+1) % 32;
+	assert(seqnum != next_expected);
 
 	++m_list_size;
 	assert(m_list_size <= SEQNUM_MAX+1);
@@ -320,46 +317,45 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 	// Otherwise find the right place
 	std::list<BufferedPacket>::iterator i = m_list.begin();
 	// Find the first packet in the list which has a higher seqnum
+	u16 s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
 
-	/* skip initial packets */
+	/* case seqnum is smaller then next_expected seqnum */
+	/* this is true e.g. on wrap around */
 	if (seqnum < next_expected) {
-		u16 s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
-		while((i != m_list.end()) && (s < SEQNUM_MAX)) {
-			s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
+		while(((s < seqnum) || (s >= next_expected)) && (i != m_list.end())) {
 			i++;
+			if (i != m_list.end())
+				s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
 		}
 	}
-
-	/* if there are no unanswered packets after oldest missing ack push it */
-	if(i == m_list.end())
+	/* non wrap around case (at least for incoming and next_expected */
+	else
 	{
-		m_list.push_back(p);
-		m_oldest_non_answered_ack = readU16(&(*m_list.begin()).data[BASE_HEADER_SIZE+1]);
-		// Done.
-		return;
-	}
-
-	/* find position in remaining list */
-	for (; i != m_list.end(); i++) {
-		u16 s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
-
-		/* same sequence number in list */
-		if (s == seqnum)
-		{
-			assert(i->data.getSize() == p.data.getSize());
-			assert(i->address == p.address);
-
-			/* nothing to do this seems to be a resent packet */
-			/* for paranoia reason data should be compared */
-			--m_list_size;
-			return;
+		while(((s < seqnum) && (s >= next_expected)) && (i != m_list.end())) {
+			i++;
+			if (i != m_list.end())
+				s = readU16(&(i->data[BASE_HEADER_SIZE+1]));
 		}
-
-		if (s > seqnum)
-			break;
 	}
-	// Insert before i
-	m_list.insert(i, p);
+
+	if (s == seqnum) {
+		i--;
+		assert(i->data.getSize() == p.data.getSize());
+		assert(i->address == p.address);
+
+		/* nothing to do this seems to be a resent packet */
+		/* for paranoia reason data should be compared */
+		--m_list_size;
+	}
+	/* insert or push back */
+	else if (i != m_list.end()) {
+		m_list.insert(i, p);
+	}
+	else {
+		m_list.push_back(p);
+	}
+
+	/* update last packet number */
 	m_oldest_non_answered_ack = readU16(&(*m_list.begin()).data[BASE_HEADER_SIZE+1]);
 }
 
@@ -1886,12 +1882,6 @@ bool ConnectionReceiveThread::checkIncomingBuffers(Channel *channel, u16 &peer_i
 			dst = processPacket(channel, payload, peer_id, channelnum, true);
 			return true;
 		}
-		else {
-			if (channel->incoming_reliables.containsPacket(channel->readNextIncomingSeqNum())) {
-				channel->incoming_reliables.print();
-				assert("List of incoming packets is broken!" == 0);
-			}
-		}
 	}
 	return false;
 }
@@ -2110,14 +2100,19 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 				<< ", channel: " << (channelnum&0xFF)
 				<< ", seqnum: " << seqnum << std::endl;)
 
-		channel->incNextIncomingSeqNum();
 
-		u16 oldest_queued_reliable = 0;
-		if (channel->incoming_reliables.getFirstSeqnum(oldest_queued_reliable))
+		/* check for resend case */
+		u16 queued_seqnum = 0;
+		if (channel->incoming_reliables.getFirstSeqnum(queued_seqnum))
 		{
-			assert(oldest_queued_reliable-channel->readNextIncomingSeqNum() <
-					MAX_RELIABLE_WINDOW_SIZE);
+			if (queued_seqnum == seqnum)
+			{
+				BufferedPacket queued_packet = channel->incoming_reliables.popFirst();
+				/** TODO find a way to verify the new against the old packet */
+			}
 		}
+
+		channel->incNextIncomingSeqNum();
 
 		// Get out the inside packet and re-process it
 		SharedBuffer<u8> payload(packetdata.getSize() - RELIABLE_HEADER_SIZE);

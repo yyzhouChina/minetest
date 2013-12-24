@@ -328,7 +328,6 @@ private:
 	JMutex m_list_mutex;
 
 	unsigned int writeptr;
-	volatile u16 m_insert_trace[32][2];
 };
 
 /*
