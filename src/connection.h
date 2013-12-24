@@ -618,11 +618,6 @@ public:
 					unsigned int maxcommands,
 					unsigned int maxtransfer);
 
-	unsigned int getMaxUnreliablesPerSecond();
-
-	void UpdateMaxUnreliables(float dtime);
-	void UpdatePacketLossCounter(unsigned int count);
-
 	unsigned int m_num_sendable;
 	unsigned int m_num_sent;
 	float        m_sendable_accu;
@@ -649,11 +644,6 @@ private:
 	bool processReliableSendCommand(
 					ConnectionCommand &c,
 					unsigned int max_packet_size);
-
-	float m_window_adapt_accu;
-	int m_max_packets_per_second;
-
-	int m_packets_lost;
 
 	Connection* m_connection;
 };

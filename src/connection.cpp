@@ -60,10 +60,6 @@ JMutex log_message_mutex;
  /* starting value for window size */
 #define MIN_RELIABLE_WINDOW_SIZE 0x4000
 
-#define MAX_UNRELIABLE_WINDOW_SIZE 256
-#define MIN_UNRELIABLE_WINDOW_SIZE   32
-
-
 static u16 readPeerId(u8 *packetdata)
 {
 	return readU16(&packetdata[4]);
@@ -608,13 +604,19 @@ u16 Channel::getOutgoingSequenceNumber(bool& successfull)
 	if (outgoing_reliables_sent.getFirstSeqnum(lowest_unacked_seqnumber))
 	{
 		if (lowest_unacked_seqnumber < next_outgoing_seqnum) {
-			if ((next_outgoing_seqnum - lowest_unacked_seqnumber) > window_size) {
+			// ugly cast but this one is required in order to tell compiler we
+			// know about difference of two unsigned may be negative in general
+			// but we already made sure it won't happen in this case
+			if (((u16)(next_outgoing_seqnum - lowest_unacked_seqnumber)) > window_size) {
 				successfull = false;
 				return 0;
 			}
 		}
 		else {
-			if ((next_outgoing_seqnum + (SEQNUM_MAX - lowest_unacked_seqnumber)) >
+			// ugly cast but this one is required in order to tell compiler we
+			// know about difference of two unsigned may be negative in general
+			// but we already made sure it won't happen in this case
+			if ((next_outgoing_seqnum + (u16)(SEQNUM_MAX - lowest_unacked_seqnumber)) >
 				window_size) {
 				successfull = false;
 				return 0;
@@ -825,9 +827,6 @@ Peer::Peer(u16 a_id, Address a_address, Connection* connection):
 	resend_timeout(0.5),
 	m_usage(0),
 	m_pending_deletion(false),
-	m_window_adapt_accu(0.0),
-	m_max_packets_per_second(MIN_UNRELIABLE_WINDOW_SIZE),
-	m_packets_lost(0),
 	m_connection(connection)
 {
 }
@@ -1064,61 +1063,6 @@ void Peer::RunCommandQueues(
 	}
 }
 
-unsigned int Peer::getMaxUnreliablesPerSecond()
-{
-	return this->m_max_packets_per_second;
-}
-
-void Peer::UpdateMaxUnreliables(float dtime)
-{
-	m_window_adapt_accu += dtime;
-
-	if (m_window_adapt_accu > 5.0) {
-		m_window_adapt_accu-= 5.0;
-
-		unsigned int packet_loss = 11; /* use a neutral value for initialization */
-
-		{
-			JMutexAutoLock internal(m_exclusive_access_mutex);
-			packet_loss = m_packets_lost;
-			m_packets_lost = 0;
-		}
-		/* TODO evaluate different parameters for this */
-		if ((packet_loss == 0) &&
-			(m_max_packets_per_second < MAX_UNRELIABLE_WINDOW_SIZE))
-		{
-			m_max_packets_per_second = MYMAX(
-										(m_max_packets_per_second + 10),
-										MAX_UNRELIABLE_WINDOW_SIZE);
-		}
-		else if ((packet_loss < 10) &&
-				(m_max_packets_per_second < MAX_UNRELIABLE_WINDOW_SIZE))
-		{
-			m_max_packets_per_second = MYMAX(
-										(m_max_packets_per_second + 2),
-										MAX_UNRELIABLE_WINDOW_SIZE);
-		}
-		else if (packet_loss > 20)
-		{
-			m_max_packets_per_second = MYMAX(
-										(m_max_packets_per_second - 2),
-										MIN_UNRELIABLE_WINDOW_SIZE);
-		}
-		else if (packet_loss > 50)
-		{
-			m_max_packets_per_second = MYMAX(
-										(m_max_packets_per_second - 10),
-										MIN_UNRELIABLE_WINDOW_SIZE);
-		}
-	}
-}
-
-void Peer::UpdatePacketLossCounter(unsigned int count)
-{
-	JMutexAutoLock lock(m_exclusive_access_mutex);
-	m_packets_lost += count;
-}
-
 /******************************************************************************/
 /* Connection Threads                                                         */
 /******************************************************************************/
@@ -1290,7 +1234,6 @@ void ConnectionSendThread::runTimeouts(float dtime)
 							(m_max_data_packets_per_iteration/m_connection->m_peers.size()));
 
 			channel->UpdatePacketLossCounter(timed_outs.size());
-			peer->UpdatePacketLossCounter(timed_outs.size());
 
 			m_iteration_packets_avaialble -= timed_outs.size();
 
@@ -1328,7 +1271,6 @@ void ConnectionSendThread::runTimeouts(float dtime)
 			rawSendAsPacket(peer->id, 0, data, true);
 		}
 
-		peer->UpdateMaxUnreliables(dtime);
 		peer->RunCommandQueues(m_max_packet_size,
 								m_max_commands_per_iteration,
 								m_max_packets_requeued);
@@ -1750,13 +1692,6 @@ void ConnectionSendThread::sendPackets(float dtime)
 		if (!peer) {
 			LOG(dout_con<<m_connection->getDesc()<< " Peer not found: peer_id=" << *j << std::endl);
 			continue;
-		}
-
-
-		peer->m_sendable_accu -= peer->m_num_sent/peer->getMaxUnreliablesPerSecond();
-		if (peer->m_sendable_accu < 0)
-		{
-			peer->m_sendable_accu = 0;
 		}
 	}
 }
