@@ -339,7 +339,20 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 	}
 
 	if (s == seqnum) {
-		i--;
+		if (
+			(readU16(&(i->data[BASE_HEADER_SIZE+1])) != seqnum) ||
+			(i->data.getSize() != p.data.getSize()) ||
+			(i->address != p.address)
+			)
+		{
+			fprintf(stderr, "Duplicated seqnum %d non matching packet detected:\n",seqnum);
+			fprintf(stderr, "Old: seqnum: %05d size: %04d, address: %s\n",
+					readU16(&(i->data[BASE_HEADER_SIZE+1])),i->data.getSize(), i->address.serializeString().c_str());
+			fprintf(stderr, "New: seqnum: %05d size: %04d, address: %s\n",
+					readU16(&(p.data[BASE_HEADER_SIZE+1])),p.data.getSize(), p.address.serializeString().c_str());
+		}
+
+		assert(readU16(&(i->data[BASE_HEADER_SIZE+1])) == seqnum);
 		assert(i->data.getSize() == p.data.getSize());
 		assert(i->address == p.address);
 
@@ -1146,9 +1159,13 @@ void ConnectionSendThread::Trigger()
 bool ConnectionSendThread::packetsQueued()
 {
 
-	if (this->m_outgoing_queue.size() > 0) return true;
+
 
 	std::list<u16> peerIds = m_connection->getPeerIDs();
+
+	if ((this->m_outgoing_queue.size() > 0) && (peerIds.size() > 0))
+		return true;
+
 	for(std::list<u16>::iterator j = peerIds.begin();
 			j != peerIds.end(); ++j)
 	{
@@ -1685,7 +1702,7 @@ void ConnectionSendThread::sendPackets(float dtime)
 			j = peerIds.begin();
 			j != peerIds.end(); ++j)
 	{
-		PeerHelper peer = m_connection->getPeer(*j);
+		PeerHelper peer = m_connection->getPeerNoEx(*j);
 		//peer may have been removed
 		if (!peer) {
 			LOG(dout_con<<m_connection->getDesc()<< " Peer not found: peer_id=" << *j << std::endl);
