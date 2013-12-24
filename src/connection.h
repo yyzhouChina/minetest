@@ -486,8 +486,24 @@ public:
 	void UpdatePacketLossCounter(unsigned int count);
 	void UpdatePacketTooLateCounter();
 	void UpdateBytesSent(unsigned int bytes);
+	void UpdateBytesLost(unsigned int bytes);
 
 	void UpdateTimers(float dtime);
+
+	const float getCurrentDownloadRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return cur_kbps; };
+	const float getMaxDownloadRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return max_kbps; };
+
+	const float getCurrentLossRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return cur_kbps_lost; };
+	const float getMaxLossRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return max_kbps_lost; };
+
+	const float getAvgDownloadRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return avg_kbps; };
+	const float getAvgLossRateKB()
+		{ JMutexAutoLock lock(m_internal_mutex); return avg_kbps_lost; };
 
 	const unsigned int getWindowSize() const { return window_size; };
 private:
@@ -504,7 +520,13 @@ private:
 	float packet_loss_counter;
 
 	unsigned int current_bytes_transfered;
-	float max_bpm;
+	unsigned int current_bytes_lost;
+	float max_kbps;
+	float cur_kbps;
+	float avg_kbps;
+	float max_kbps_lost;
+	float cur_kbps_lost;
+	float avg_kbps_lost;
 	float bpm_counter;
 };
 
@@ -576,8 +598,7 @@ public:
 	float timeout_counter;
 	// Ping timer
 	float ping_timer;
-	// This is changed dynamically
-	float resend_timeout;
+
 	// Updated when an ACK is received
 	float avg_rtt;
 	// This is set to true when the peer has actually sent something
@@ -606,10 +627,20 @@ public:
 	unsigned int m_num_sent;
 	float        m_sendable_accu;
 
+	float getResendTimeout()
+		{ JMutexAutoLock lock(m_exclusive_access_mutex); return resend_timeout; }
+
+	void setResendTimeout(float timeout)
+		{ JMutexAutoLock lock(m_exclusive_access_mutex); resend_timeout = timeout; }
+
 protected:
 	bool IncUseCount();
 	void DecUseCount();
+
 private:
+	// This is changed dynamically
+	float resend_timeout;
+
 	unsigned int m_usage;
 	bool m_pending_deletion;
 

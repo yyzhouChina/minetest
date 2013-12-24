@@ -17,6 +17,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include <iomanip>
 #include "connection.h"
 #include "main.h"
 #include "serialization.h"
@@ -32,17 +33,31 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 namespace con
 {
 
+/* this mutex is used to achieve log message consistency */
 JMutex log_message_mutex;
-
 #define LOG(a)                                                                 \
 	{                                                                          \
 	JMutexAutoLock loglock(log_message_mutex);                                 \
 	a;                                                                         \
 	}
 
+/******************************************************************************/
+/* defines used for debugging and profiling                                   */
+/******************************************************************************/
 #define PROFILE(a) a
+//#define PROFILE(a)
 
+//#define DEBUG_CONNECTION_KBPS
+#undef DEBUG_CONNECTION_KBPS
+
+
+
+/* maximum window size to use, 0xFFFF is theoretical maximum  don't think about
+ * touching it, the less you're away from it the more likely data corruption
+ * will occur
+ */
 #define MAX_RELIABLE_WINDOW_SIZE 0x8000
+ /* starting value for window size */
 #define MIN_RELIABLE_WINDOW_SIZE 0x4000
 
 #define MAX_UNRELIABLE_WINDOW_SIZE 256
@@ -345,6 +360,7 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 			(i->address != p.address)
 			)
 		{
+			/* if this happens your maximum transfer window may be to big */
 			fprintf(stderr, "Duplicated seqnum %d non matching packet detected:\n",seqnum);
 			fprintf(stderr, "Old: seqnum: %05d size: %04d, address: %s\n",
 					readU16(&(i->data[BASE_HEADER_SIZE+1])),i->data.getSize(), i->address.serializeString().c_str());
@@ -527,13 +543,24 @@ void IncomingSplitBuffer::removeUnreliableTimedOuts(float dtime, float timeout)
 	Channel
 */
 
-Channel::Channel()
+Channel::Channel() :
+		window_size(MIN_RELIABLE_WINDOW_SIZE),
+		next_incoming_seqnum(SEQNUM_INITIAL),
+		next_outgoing_seqnum(SEQNUM_INITIAL),
+		next_outgoing_split_seqnum(SEQNUM_INITIAL),
+		current_packet_loss(0),
+		current_packet_too_late(0),
+		packet_loss_counter(0),
+		current_bytes_transfered(0),
+		current_bytes_lost(0),
+		max_kbps(0.0),
+		cur_kbps(0.0),
+		avg_kbps(0.0),
+		max_kbps_lost(0.0),
+		cur_kbps_lost(0.0),
+		avg_kbps_lost(0.0),
+		bpm_counter(0.0)
 {
-	next_outgoing_seqnum = SEQNUM_INITIAL;
-	next_incoming_seqnum = SEQNUM_INITIAL;
-	next_outgoing_split_seqnum = SEQNUM_INITIAL;
-	window_size = MAX_RELIABLE_WINDOW_SIZE;
-	max_bpm = 0;
 }
 
 Channel::~Channel()
@@ -621,6 +648,12 @@ void Channel::UpdateBytesSent(unsigned int bytes)
 	current_bytes_transfered += bytes;
 }
 
+void Channel::UpdateBytesLost(unsigned int bytes)
+{
+	JMutexAutoLock internal(m_internal_mutex);
+	current_bytes_lost += bytes;
+}
+
 
 void Channel::UpdatePacketLossCounter(unsigned int count)
 {
@@ -639,32 +672,45 @@ void Channel::UpdateTimers(float dtime)
 	bpm_counter += dtime;
 	packet_loss_counter += dtime;
 
-	if (bpm_counter > 5.0)
+	if (packet_loss_counter > 5.0)
 	{
-		bpm_counter -= 5.0;
+		packet_loss_counter -= 5.0;
 
 		unsigned int packet_loss = 11; /* use a neutral value for initialization */
 		unsigned int packet_too_late = 0;
+
+		bool reasonable_amount_of_data_transmitted = false;
 
 		{
 			JMutexAutoLock internal(m_internal_mutex);
 			packet_loss = current_packet_loss;
 			packet_too_late = current_packet_too_late;
+
+			if (current_bytes_transfered > (window_size*512/2))
+			{
+				reasonable_amount_of_data_transmitted = true;
+			}
 			current_packet_loss = 0;
 			current_packet_too_late = 0;
 		}
-		/* TODO evaluate different parameters for this */
+
 		if ((packet_loss == 0) &&
 			(window_size < MAX_RELIABLE_WINDOW_SIZE))
 		{
-			window_size = MYMAX(
+			/* don't even think about increasing if we didn't even
+			 * use major parts of our window */
+			if (reasonable_amount_of_data_transmitted)
+				window_size = MYMAX(
 										(window_size + 10),
 										MAX_RELIABLE_WINDOW_SIZE);
 		}
 		else if ((packet_loss < 10) &&
 				(window_size < MAX_RELIABLE_WINDOW_SIZE))
 		{
-			window_size = MYMAX(
+			/* don't even think about increasing if we didn't even
+			 * use major parts of our window */
+			if (reasonable_amount_of_data_transmitted)
+				window_size = MYMAX(
 										(window_size + 2),
 										MAX_RELIABLE_WINDOW_SIZE);
 		}
@@ -682,21 +728,32 @@ void Channel::UpdateTimers(float dtime)
 		}
 	}
 
-	if (packet_loss_counter > 60.0)
+	if (bpm_counter > 10.0)
 	{
-		float pps = 0;
-
 		{
 			JMutexAutoLock internal(m_internal_mutex);
-			pps = current_bytes_transfered/bpm_counter;
-			packet_loss_counter = 0;
+			cur_kbps = (current_bytes_transfered/bpm_counter)/1024;
+			current_bytes_transfered = 0;
+			cur_kbps_lost = (current_bytes_lost/bpm_counter)/1024;
+			current_bytes_lost = 0;
+			bpm_counter = 0;
 		}
-		if (pps > max_bpm)
+
+		if (cur_kbps > max_kbps)
 		{
-			max_bpm = pps;
+			max_kbps = cur_kbps;
 		}
+
+		if (cur_kbps_lost > max_kbps_lost)
+		{
+			max_kbps_lost = cur_kbps_lost;
+		}
+
+		avg_kbps = avg_kbps * 0.9 + cur_kbps * 0.1;
+		avg_kbps_lost = avg_kbps_lost * 0.9 + cur_kbps_lost * 0.1;
 	}
 }
+
 
 /*
 	Peer
@@ -759,13 +816,13 @@ Peer::Peer(u16 a_id, Address a_address, Connection* connection):
 	id(a_id),
 	timeout_counter(0.0),
 	ping_timer(0.0),
-	resend_timeout(0.5),
 	avg_rtt(-1.0),
 	has_sent_with_id(false),
 	m_sendtime_accu(0.0),
 	m_num_sendable(1),
 	m_num_sent(9),
 	m_sendable_accu(0.0),
+	resend_timeout(0.5),
 	m_usage(0),
 	m_pending_deletion(false),
 	m_window_adapt_accu(0.0),
@@ -799,6 +856,8 @@ void Peer::reportRTT(float rtt)
 		timeout = RESEND_TIMEOUT_MIN;
 	if(timeout > RESEND_TIMEOUT_MAX)
 		timeout = RESEND_TIMEOUT_MAX;
+
+	JMutexAutoLock usage_lock(m_exclusive_access_mutex);
 	resend_timeout = timeout;
 }
 
@@ -894,7 +953,7 @@ bool Peer::processReliableSendCommand(
 							- BASE_HEADER_SIZE
 							- RELIABLE_HEADER_SIZE;
 
-	assert(c.data.getSize() < MIN_RELIABLE_WINDOW_SIZE*512);
+	assert(c.data.getSize() < MAX_RELIABLE_WINDOW_SIZE*512);
 
 	std::list<SharedBuffer<u8> > originals;
 	u16 split_sequence_number = channels[c.channelnum].readNextSplitSeqNum();
@@ -1213,7 +1272,7 @@ void ConnectionSendThread::runTimeouts(float dtime)
 			continue;
 		}
 
-		float resend_timeout = peer->resend_timeout;
+		float resend_timeout = peer->getResendTimeout();
 		for(u16 i=0; i<CHANNEL_COUNT; i++)
 		{
 			std::list<BufferedPacket> timed_outs;
@@ -1239,26 +1298,24 @@ void ConnectionSendThread::runTimeouts(float dtime)
 				j != timed_outs.end(); ++j)
 			{
 				u16 peer_id = readPeerId(*(j->data));
-				u8 channel  = readChannel(*(j->data));
+				u8 channelnum  = readChannel(*(j->data));
 				u16 seqnum  = readU16(&(j->data[BASE_HEADER_SIZE+1]));
+
+				channel->UpdateBytesLost(j->data.getSize());
 
 				LOG(derr_con<<m_connection->getDesc()
 						<<"RE-SENDING timed-out RELIABLE to "
 						<< j->address.serializeString()
 						<< "(t/o="<<resend_timeout<<"): "
 						<<"from_peer_id="<<peer_id
-						<<", channel="<<((int)channel&0xff)
+						<<", channel="<<((int)channelnum&0xff)
 						<<", seqnum="<<seqnum
-						<<", current_timeout: " << peer->resend_timeout
 						<<std::endl);
 
 				rawSend(*j);
 
-				// Enlarge avg_rtt and resend_timeout:
-				// The rtt will be at least the timeout.
-				// NOTE: This won't affect the timeout of the next
-				// checked channel because it was cached.
-				peer->reportRTT(resend_timeout);
+				// do not handle rtt here as we can't decide if this packet was
+				// lost or really takes more time to transmit
 			}
 
 			channel->UpdateTimers(dtime);
@@ -1729,13 +1786,77 @@ void * ConnectionReceiveThread::Thread()
 	PROFILE(std::stringstream ThreadIdentifier);
 	PROFILE(ThreadIdentifier << "ConnectionReceive: [" << m_connection->getDesc() << "]");
 
+#ifdef DEBUG_CONNECTION_KBPS
+	u32 curtime = porting::getTimeMs();
+	u32 lasttime = curtime;
+	float debug_print_timer = 0.0;
+#endif
+
 	while(!StopRequested()) {
 		BEGIN_DEBUG_EXCEPTION_HANDLER
 		PROFILE(ScopeProfiler sp(g_profiler, ThreadIdentifier.str(), SPT_AVG));
 
+#ifdef DEBUG_CONNECTION_KBPS
+		lasttime = curtime;
+		curtime = porting::getTimeMs();
+		float dtime = CALC_DTIME(lasttime,curtime);
+#endif
+
 		/* receive packets */
 		receive();
 
+#ifdef DEBUG_CONNECTION_KBPS
+		debug_print_timer += dtime;
+		if (debug_print_timer > 20.0) {
+			debug_print_timer -= 20.0;
+
+			std::list<u16> peerids = m_connection->getPeerIDs();
+
+			for (std::list<u16>::iterator i = peerids.begin();
+					i != peerids.end();
+					i++)
+			{
+				PeerHelper peer = m_connection->getPeer(*i);
+				if (!peer)
+					continue;
+
+				float peer_current = 0.0;
+				float peer_loss = 0.0;
+				float avg_rate = 0.0;
+				float avg_loss = 0.0;
+
+				for(u16 j=0; j<CHANNEL_COUNT; j++)
+				{
+					peer_current +=peer->channels[j].getCurrentDownloadRateKB();
+					peer_loss += peer->channels[j].getCurrentLossRateKB();
+					avg_rate += peer->channels[j].getAvgDownloadRateKB();
+					avg_loss += peer->channels[j].getAvgLossRateKB();
+				}
+
+				std::stringstream output;
+				output << std::fixed << std::setprecision(1);
+				output << "OUT to Peer " << *i << " RATES (good / loss) " << std::endl;
+				output << "\tcurrent (sum): " << peer_current << "kb/s "<< peer_loss << "kb/s" << std::endl;
+				output << "\taverage (sum): " << avg_rate << "kb/s "<< avg_loss << "kb/s" << std::endl;
+				output << std::setfill(' ');
+				for(u16 j=0; j<CHANNEL_COUNT; j++)
+				{
+					output << "\tcha " << j << ":"
+						<< " CUR: " << std::setw(6) << peer->channels[j].getCurrentDownloadRateKB() <<"kb/s"
+						<< " AVG: " << std::setw(6) << peer->channels[j].getAvgDownloadRateKB() <<"kb/s"
+						<< " MAX: " << std::setw(6) << peer->channels[j].getMaxDownloadRateKB() <<"kb/s"
+						<< " /"
+						<< " CUR: " << std::setw(6) << peer->channels[j].getCurrentLossRateKB() <<"kb/s"
+						<< " AVG: " << std::setw(6) << peer->channels[j].getAvgLossRateKB() <<"kb/s"
+						<< " MAX: " << std::setw(6) << peer->channels[j].getMaxLossRateKB() <<"kb/s"
+						<< " / WS: " << peer->channels[j].getWindowSize()
+						<< std::endl;
+				}
+
+				fprintf(stderr,"%s\n",output.str().c_str());
+			}
+		}
+#endif
 		END_DEBUG_EXCEPTION_HANDLER(derr_con);
 	}
 	PROFILE(g_profiler->removeADD(ThreadIdentifier.str()));
@@ -1745,10 +1866,7 @@ void * ConnectionReceiveThread::Thread()
 // Receive packets from the network and buffers and create ConnectionEvents
 void ConnectionReceiveThread::receive()
 {
-
 	/* now reorder reliables */
-
-
 	u32 datasize = m_max_packet_size * 2;  // Double it just to be safe
 	// TODO: We can not know how many layers of header there are.
 	// For now, just assume there are no other than the base headers.
@@ -2122,6 +2240,11 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 						<< ", channel: " << (channelnum&0xFF)
 						<< ", seqnum: " << seqnum << std::endl;)
 				m_connection->sendAck(peer_id,channelnum,seqnum);
+
+				// we already have this packet so this one was on wire at least
+				// the current timeout
+				peer->reportRTT(peer->getResendTimeout());
+
 				throw ProcessedSilentlyException("Retransmitting ack for old packet");
 			}
 		}
