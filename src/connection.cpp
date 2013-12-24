@@ -370,6 +370,16 @@ void ReliablePacketBuffer::incrementTimeouts(float dtime)
 	}
 }
 
+void ReliablePacketBuffer::incrementFirstPacketTimeout(float time)
+{
+	JMutexAutoLock listlock(m_list_mutex);
+	if (!m_list.empty())
+	{
+		(*m_list.begin()).time += time;
+		(*m_list.begin()).totaltime += time;
+	}
+}
+
 std::list<BufferedPacket> ReliablePacketBuffer::getTimedOuts(float timeout,
 													unsigned int max_packets)
 {
@@ -569,6 +579,8 @@ u16 Channel::getOutgoingSequenceNumber(bool& successfull)
 	{
 		if (lowest_unacked_seqnumber < next_outgoing_seqnum) {
 			if ((next_outgoing_seqnum - lowest_unacked_seqnumber) > window_size) {
+				//trigger resend of first packet immediately
+				outgoing_reliables_sent.incrementFirstPacketTimeout(RESEND_TIMEOUT_MAX);
 				successfull = false;
 				return 0;
 			}
@@ -576,6 +588,8 @@ u16 Channel::getOutgoingSequenceNumber(bool& successfull)
 		else {
 			if ((next_outgoing_seqnum + (SEQNUM_MAX - lowest_unacked_seqnumber)) >
 				window_size) {
+				//trigger resend of first packet immediately
+				outgoing_reliables_sent.incrementFirstPacketTimeout(RESEND_TIMEOUT_MAX);
 				successfull = false;
 				return 0;
 			}

@@ -307,6 +307,7 @@ public:
 	void insert(BufferedPacket &p,u16 next_expected);
 
 	void incrementTimeouts(float dtime);
+	void incrementFirstPacketTimeout(float time);
 	std::list<BufferedPacket> getTimedOuts(float timeout,
 			unsigned int max_packets);
 
