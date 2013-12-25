@@ -1852,7 +1852,7 @@ void ConnectionReceiveThread::receive()
 	/* first of all read packets from socket */
 	/* check for incoming data available */
 	while( (packets_received < 10) &&
-			(m_connection->m_socket.WaitData(0)))
+			(m_connection->m_socket.WaitData(50)))
 	{
 	try{
 		if (packet_queued)
