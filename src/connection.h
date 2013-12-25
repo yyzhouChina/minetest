@@ -128,12 +128,22 @@ public:
 };
 
 #define SEQNUM_MAX 65535
-inline bool seqnum_higher(u16 higher, u16 lower)
+inline bool seqnum_higher(u16 totest, u16 base)
 {
-	if(lower > higher && lower - higher > SEQNUM_MAX/2){
-		return true;
+	if (totest > base)
+	{
+		if((totest - base) > (SEQNUM_MAX/2))
+			return false;
+		else
+			return true;
 	}
-	return (higher > lower);
+	else
+	{
+		if((base - totest) > (SEQNUM_MAX/2))
+			return true;
+		else
+			return false;
+	}
 }
 
 inline bool seqnum_in_window(u16 seqnum, u16 next,u16 window_size)
