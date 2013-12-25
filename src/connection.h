@@ -402,8 +402,9 @@ struct ConnectionCommand
 	u8 channelnum;
 	Buffer<u8> data;
 	bool reliable;
+	bool raw;
 
-	ConnectionCommand(): type(CONNCMD_NONE), reliable(false) {}
+	ConnectionCommand(): type(CONNCMD_NONE), reliable(false), raw(false) {}
 
 	void serve(u16 port_)
 	{
@@ -462,6 +463,7 @@ struct ConnectionCommand
 		data = data_;
 		channelnum = 0;
 		reliable = true;
+		raw = true;
 	}
 };
 

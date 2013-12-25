@@ -978,8 +978,15 @@ bool Peer::processReliableSendCommand(
 
 	std::list<SharedBuffer<u8> > originals;
 	u16 split_sequence_number = channels[c.channelnum].readNextSplitSeqNum();
-	originals = makeAutoSplitPacket(c.data, chunksize_max,split_sequence_number);
-	channels[c.channelnum].setNextSplitSeqNum(split_sequence_number);
+
+	if (c.raw)
+	{
+		originals.push_back(c.data);
+	}
+	else {
+		originals = makeAutoSplitPacket(c.data, chunksize_max,split_sequence_number);
+		channels[c.channelnum].setNextSplitSeqNum(split_sequence_number);
+	}
 
 	bool have_sequence_number = true;
 	bool have_initial_sequence_number = false;
@@ -1290,7 +1297,12 @@ void ConnectionSendThread::runTimeouts(float dtime)
 		if (peer->Ping(dtime,data)) {
 			LOG(dout_con<<m_connection->getDesc()
 					<<"Sending ping for peer_id: " << peer->id <<std::endl);
-			rawSendAsPacket(peer->id, 0, data, true);
+			/* this may fail if there ain't a sequence number left */
+			if (!rawSendAsPacket(peer->id, 0, data, true))
+			{
+				//retrigger with reduced ping interval
+				peer->Ping(4.0,data);
+			}
 		}
 
 		peer->RunCommandQueues(m_max_packet_size,
@@ -1357,7 +1369,8 @@ bool ConnectionSendThread::rawSendAsPacket(u16 peer_id, u8 channelnum,
 		bool have_sequence_number_for_raw_packet = true;
 		u16 seqnum = channel->getOutgoingSequenceNumber(have_sequence_number_for_raw_packet);
 
-		assert(have_sequence_number_for_raw_packet);
+		if (!have_sequence_number_for_raw_packet)
+			return false;
 
 		SharedBuffer<u8> reliable = makeReliablePacket(data, seqnum);
 
@@ -1422,7 +1435,11 @@ void ConnectionSendThread::processReliableCommand(ConnectionCommand &c)
 
 	case CONCMD_CREATE_PEER:
 		LOG(dout_con<<m_connection->getDesc()<<" processing reliable CONCMD_CREATE_PEER"<<std::endl);
-		rawSendAsPacket(c.peer_id,c.channelnum,c.data,c.reliable);
+		if (!rawSendAsPacket(c.peer_id,c.channelnum,c.data,c.reliable))
+		{
+			/* put to queue if we couldn't send it immediately */
+			sendReliable(c);
+		}
 		return;
 
 	case CONNCMD_SERVE:
