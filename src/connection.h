@@ -119,6 +119,14 @@ public:
 	{}
 };
 
+class IncomingDataCorruption : public BaseException
+{
+public:
+	IncomingDataCorruption(const char *s):
+		BaseException(s)
+	{}
+};
+
 #define SEQNUM_MAX 65535
 inline bool seqnum_higher(u16 higher, u16 lower)
 {
@@ -377,6 +385,7 @@ enum ConnectionCommandType{
 	CONNCMD_SERVE,
 	CONNCMD_CONNECT,
 	CONNCMD_DISCONNECT,
+	CONNCMD_DISCONNECT_PEER,
 	CONNCMD_SEND,
 	CONNCMD_SEND_TO_ALL,
 	CONNCMD_DELETE_PEER,
@@ -409,6 +418,11 @@ struct ConnectionCommand
 	void disconnect()
 	{
 		type = CONNCMD_DISCONNECT;
+	}
+	void disconnect_peer(u16 peer_id_)
+	{
+		type = CONNCMD_DISCONNECT_PEER;
+		peer_id = peer_id_;
 	}
 	void send(u16 peer_id_, u8 channelnum_,
 			SharedBuffer<u8> data_, bool reliable_)
@@ -485,7 +499,7 @@ public:
 
 	void UpdatePacketLossCounter(unsigned int count);
 	void UpdatePacketTooLateCounter();
-	void UpdateBytesSent(unsigned int bytes);
+	void UpdateBytesSent(unsigned int bytes,unsigned int packages=1);
 	void UpdateBytesLost(unsigned int bytes);
 
 	void UpdateTimers(float dtime);
@@ -517,6 +531,7 @@ private:
 
 	unsigned int current_packet_loss;
 	unsigned int current_packet_too_late;
+	unsigned int current_packet_successfull;
 	float packet_loss_counter;
 
 	unsigned int current_bytes_transfered;
@@ -734,6 +749,7 @@ private:
 	void serve          (u16 port);
 	void connect        (Address address);
 	void disconnect     ();
+	void disconnect_peer(u16 peer_id);
 	void send           (u16 peer_id, u8 channelnum,
 							SharedBuffer<u8> data);
 	void sendReliable   (ConnectionCommand &c);

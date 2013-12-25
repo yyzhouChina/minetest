@@ -58,7 +58,7 @@ JMutex log_message_mutex;
  */
 #define MAX_RELIABLE_WINDOW_SIZE 0x8000
  /* starting value for window size */
-#define MIN_RELIABLE_WINDOW_SIZE 0x4000
+#define MIN_RELIABLE_WINDOW_SIZE 0x40
 
 static u16 readPeerId(u8 *packetdata)
 {
@@ -362,6 +362,7 @@ void ReliablePacketBuffer::insert(BufferedPacket &p,u16 next_expected)
 					readU16(&(i->data[BASE_HEADER_SIZE+1])),i->data.getSize(), i->address.serializeString().c_str());
 			fprintf(stderr, "New: seqnum: %05d size: %04d, address: %s\n",
 					readU16(&(p.data[BASE_HEADER_SIZE+1])),p.data.getSize(), p.address.serializeString().c_str());
+			throw IncomingDataCorruption("duplicated packet isn't same as original one");
 		}
 
 		assert(readU16(&(i->data[BASE_HEADER_SIZE+1])) == seqnum);
@@ -644,10 +645,11 @@ bool Channel::putBackSequenceNumber(u16 seqnum)
 	return false;
 }
 
-void Channel::UpdateBytesSent(unsigned int bytes)
+void Channel::UpdateBytesSent(unsigned int bytes, unsigned int packets)
 {
 	JMutexAutoLock internal(m_internal_mutex);
 	current_bytes_transfered += bytes;
+	current_packet_successfull += packets;
 }
 
 void Channel::UpdateBytesLost(unsigned int bytes)
@@ -674,11 +676,12 @@ void Channel::UpdateTimers(float dtime)
 	bpm_counter += dtime;
 	packet_loss_counter += dtime;
 
-	if (packet_loss_counter > 5.0)
+	if (packet_loss_counter > 1.0)
 	{
-		packet_loss_counter -= 5.0;
+		packet_loss_counter -= 1.0;
 
 		unsigned int packet_loss = 11; /* use a neutral value for initialization */
+		unsigned int packets_successfull = 0;
 		unsigned int packet_too_late = 0;
 
 		bool reasonable_amount_of_data_transmitted = false;
@@ -687,6 +690,7 @@ void Channel::UpdateTimers(float dtime)
 			JMutexAutoLock internal(m_internal_mutex);
 			packet_loss = current_packet_loss;
 			packet_too_late = current_packet_too_late;
+			packets_successfull = current_packet_successfull;
 
 			if (current_bytes_transfered > (window_size*512/2))
 			{
@@ -694,39 +698,57 @@ void Channel::UpdateTimers(float dtime)
 			}
 			current_packet_loss = 0;
 			current_packet_too_late = 0;
+			current_packet_successfull = 0;
 		}
 
-		if ((packet_loss == 0) &&
-			(window_size < MAX_RELIABLE_WINDOW_SIZE))
-		{
-			/* don't even think about increasing if we didn't even
-			 * use major parts of our window */
-			if (reasonable_amount_of_data_transmitted)
-				window_size = MYMAX(
-										(window_size + 10),
-										MAX_RELIABLE_WINDOW_SIZE);
+		float successfull_to_lost_ratio = 0.0;
+		bool done = false;
+
+		if (packets_successfull > 0) {
+			successfull_to_lost_ratio = packet_loss/packets_successfull;
 		}
-		else if ((packet_loss < 10) &&
-				(window_size < MAX_RELIABLE_WINDOW_SIZE))
-		{
-			/* don't even think about increasing if we didn't even
-			 * use major parts of our window */
-			if (reasonable_amount_of_data_transmitted)
-				window_size = MYMAX(
-										(window_size + 2),
-										MAX_RELIABLE_WINDOW_SIZE);
-		}
-		else if (packet_loss > 20)
-		{
-			window_size = MYMAX(
-										(window_size - 2),
-										MIN_RELIABLE_WINDOW_SIZE);
-		}
-		else if (packet_loss > 50)
+		else if (packet_loss > 0)
 		{
 			window_size = MYMAX(
 										(window_size - 10),
 										MIN_RELIABLE_WINDOW_SIZE);
+			done = true;
+		}
+
+		if (!done)
+		{
+			if ((successfull_to_lost_ratio < 0.01) &&
+				(window_size < MAX_RELIABLE_WINDOW_SIZE))
+			{
+				/* don't even think about increasing if we didn't even
+				 * use major parts of our window */
+				if (reasonable_amount_of_data_transmitted)
+					window_size = MYMIN(
+											(window_size + 100),
+											MAX_RELIABLE_WINDOW_SIZE);
+			}
+			else if ((successfull_to_lost_ratio < 0.05) &&
+					(window_size < MAX_RELIABLE_WINDOW_SIZE))
+			{
+				/* don't even think about increasing if we didn't even
+				 * use major parts of our window */
+				if (reasonable_amount_of_data_transmitted)
+					window_size = MYMIN(
+											(window_size + 50),
+											MAX_RELIABLE_WINDOW_SIZE);
+			}
+			else if (successfull_to_lost_ratio > 0.15)
+			{
+				window_size = MYMAX(
+											(window_size - 100),
+											MIN_RELIABLE_WINDOW_SIZE);
+			}
+			else if (successfull_to_lost_ratio > 0.1)
+			{
+				window_size = MYMAX(
+											(window_size - 50),
+											MIN_RELIABLE_WINDOW_SIZE);
+			}
 		}
 	}
 
@@ -1436,6 +1458,10 @@ void ConnectionSendThread::processNonReliableCommand(ConnectionCommand &c)
 		LOG(dout_con<<m_connection->getDesc()<<" processing CONNCMD_DISCONNECT"<<std::endl);
 		disconnect();
 		return;
+	case CONNCMD_DISCONNECT_PEER:
+		LOG(dout_con<<m_connection->getDesc()<<" processing CONNCMD_DISCONNECT_PEER"<<std::endl);
+		disconnect_peer(c.peer_id);
+		return;
 	case CONNCMD_SEND:
 		LOG(dout_con<<m_connection->getDesc()<<" processing CONNCMD_SEND"<<std::endl);
 		send(c.peer_id, c.channelnum, c.data);
@@ -1513,6 +1539,17 @@ void ConnectionSendThread::disconnect()
 	{
 		sendAsPacket(*i, 0,data,false);
 	}
+}
+
+void ConnectionSendThread::disconnect_peer(u16 peer_id)
+{
+	LOG(dout_con<<m_connection->getDesc()<<" disconnecting peer"<<std::endl);
+
+	// Create and send DISCO packet
+	SharedBuffer<u8> data(2);
+	writeU8(&data[0], TYPE_CONTROL);
+	writeU8(&data[1], CONTROLTYPE_DISCO);
+	sendAsPacket(peer_id, 0,data,false);
 }
 
 void ConnectionSendThread::send(u16 peer_id, u8 channelnum,
@@ -2038,7 +2075,7 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 				peer->reportRTT(rtt);
 
 				//put bytes for max bandwidth calculation
-				channel->UpdateBytesSent(p.data.getSize());
+				channel->UpdateBytesSent(p.data.getSize(),1);
 			}
 			catch(NotFoundException &e){
 				LOG(derr_con<<m_connection->getDesc()
@@ -2197,17 +2234,29 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 					channelnum);
 			try{
 				channel->incoming_reliables.insert(packet,channel->readNextIncomingSeqNum());
+
+				LOG(dout_con<<m_connection->getDesc()
+						<< "BUFFERING, TYPE_RELIABLE peer_id: " << peer_id
+						<< ", channel: " << (channelnum&0xFF)
+						<< ", seqnum: " << seqnum << std::endl;)
+
+				throw ProcessedQueued("Buffered future reliable packet");
 			}
 			catch(AlreadyExistsException &e)
 			{
 			}
+			catch(IncomingDataCorruption &e)
+			{
+				ConnectionCommand discon;
+				discon.disconnect_peer(peer_id);
+				m_connection->putCommand(discon);
 
-			LOG(dout_con<<m_connection->getDesc()
-					<< "BUFFERING, TYPE_RELIABLE peer_id: " << peer_id
-					<< ", channel: " << (channelnum&0xFF)
-					<< ", seqnum: " << seqnum << std::endl;)
-
-			throw ProcessedQueued("Buffered future reliable packet");
+				LOG(derr_con<<m_connection->getDesc()
+						<< "INVALID, TYPE_RELIABLE peer_id: " << peer_id
+						<< ", channel: " << (channelnum&0xFF)
+						<< ", seqnum: " << seqnum
+						<< "DROPPING CLIENT!" << std::endl;)
+			}
 		}
 
 		/* we got a packet to process right now */
