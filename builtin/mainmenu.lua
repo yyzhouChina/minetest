@@ -726,6 +726,9 @@ function tabbuilder.handle_settings_buttons(fields)
 	if fields["cb_waving_plants"] then
 		engine.setting_set("enable_waving_plants", fields["cb_waving_plants"])
 	end
+		if fields["cb_tcp_connect"] then
+		engine.setting_set("client_connect_tcp", fields["cb_tcp_connect"])
+	end
 	if fields["btn_change_keys"] ~= nil then
 		engine.show_keys_menu()
 	end
@@ -1011,6 +1014,10 @@ else
 			"textlist[8.33,2.2;4,1;;#888888" .. fgettext("Waving Leaves") .. ";0;true]" ..
 			"textlist[8.33,2.7;4,1;;#888888" .. fgettext("Waving Plants") .. ";0;true]"
 	end
+	
+	tab_string = tab_string ..
+			"checkbox[8,3;cb_tcp_connect;".. fgettext("TCP Client") .. ";"
+					.. dump(engine.setting_getbool("client_connect_tcp")) .. "]"
 return tab_string
 end
 
