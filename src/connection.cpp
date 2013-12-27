@@ -838,14 +838,11 @@ bool PeerHelper::operator!=(void* ptr)
 Peer::Peer(u16 a_id, Address a_address, Connection* connection):
 	address(a_address),
 	id(a_id),
-	timeout_counter(0.0),
-	ping_timer(0.0),
-	avg_rtt(-1.0),
 	has_sent_with_id(false),
-	m_sendtime_accu(0.0),
-	m_num_sendable(1),
-	m_num_sent(9),
-	m_sendable_accu(0.0),
+	timeout_counter(0.0),
+	avg_rtt(-1.0),
+	m_increment_packets_remaining(9),
+	ping_timer(0.0),
 	resend_timeout(0.5),
 	m_usage(0),
 	m_pending_deletion(false),
@@ -1655,11 +1652,11 @@ void ConnectionSendThread::sendPackets(float dtime)
 		PROFILE(std::stringstream peerIdentifier);
 		PROFILE(peerIdentifier << "sendPackets[" << m_connection->getDesc() << ";" << *j << ";RELIABLE]");
 		PROFILE(ScopeProfiler peerprofiler(g_profiler, peerIdentifier.str(), SPT_AVG));
-		peer->m_num_sent = m_iteration_packets_avaialble/m_connection->m_peers.size();
+		peer->m_increment_packets_remaining = m_iteration_packets_avaialble/m_connection->m_peers.size();
 
 		LOG(dout_con<<m_connection->getDesc()
 				<< " Handle per peer queues: peer_id=" << *j
-				<< " packet quota: " << peer->m_num_sent << std::endl);
+				<< " packet quota: " << peer->m_increment_packets_remaining << std::endl);
 		// first send queued reliable packets for all peers (if possible)
 		for (unsigned int i=0; i < CHANNEL_COUNT; i++)
 		{
@@ -1668,7 +1665,7 @@ void ConnectionSendThread::sendPackets(float dtime)
 			u16 next_to_receive = 0;
 			peer->channels[i].incoming_reliables.getFirstSeqnum(next_to_receive);
 
-			LOG(dout_con<<m_connection->getDesc()<< "\t channel: " << i << ", peer quota:" << peer->m_num_sent
+			LOG(dout_con<<m_connection->getDesc()<< "\t channel: " << i << ", peer quota:" << peer->m_increment_packets_remaining
 					<< std::endl << "\t\t\treliables on wire: " << peer->channels[i].outgoing_reliables_sent.size()
 					<< ", waiting for ack for " << next_to_ack
 					<< std::endl << "\t\t\tincoming_reliables: " << peer->channels[i].incoming_reliables.size()
@@ -1681,7 +1678,7 @@ void ConnectionSendThread::sendPackets(float dtime)
 			while ((peer->channels[i].queued_reliables.size() > 0) &&
 					(peer->channels[i].outgoing_reliables_sent.size()
 							< peer->channels[i].getWindowSize())&&
-							(peer->m_num_sent > 0))
+							(peer->m_increment_packets_remaining > 0))
 			{
 				BufferedPacket p = peer->channels[i].queued_reliables.pop_front();
 				Channel* channel = &(peer->channels[i]);
@@ -1691,7 +1688,7 @@ void ConnectionSendThread::sendPackets(float dtime)
 						<<", seqnum: " << readU16(&p.data[BASE_HEADER_SIZE+1])
 						<< std::endl);
 				sendAsPacketReliable(p,channel);
-				peer->m_num_sent--;
+				peer->m_increment_packets_remaining--;
 			}
 		}
 	}
@@ -1725,12 +1722,13 @@ void ConnectionSendThread::sendPackets(float dtime)
 		{
 			rawSendAsPacket(packet.peer_id, packet.channelnum,
 								packet.data, packet.reliable);
-			peer->m_num_sent = MYMIN(0,peer->m_num_sent--);
+			peer->m_increment_packets_remaining =
+					MYMIN(0,peer->m_increment_packets_remaining--);
 		}
-		else if ( peer->m_num_sent > 0){
+		else if ( peer->m_increment_packets_remaining > 0){
 			rawSendAsPacket(packet.peer_id, packet.channelnum,
 					packet.data, packet.reliable);
-			peer->m_num_sent--;
+			peer->m_increment_packets_remaining--;
 		}
 		else {
 			m_outgoing_queue.push_back(packet);
@@ -2425,7 +2423,7 @@ u16 Connection::lookupPeer(Address& sender)
 	for(; j != m_peers.end(); ++j)
 	{
 		Peer *peer = j->second;
-		if(peer->has_sent_with_id)
+		if(peer->isActive())
 			continue;
 		if(peer->address == sender)
 			return peer->id;
@@ -2601,7 +2599,9 @@ Address Connection::GetPeerAddress(u16 peer_id)
 
 float Connection::GetPeerAvgRTT(u16 peer_id)
 {
-	return getPeer(peer_id)->avg_rtt;
+	PeerHelper peer = getPeer(peer_id);
+	if (!peer) return -1;
+	return peer->getAvgRTT();
 }
 
 u16 Connection::createPeer(Address& sender)

@@ -604,62 +604,66 @@ class Peer
 public:
 
 	friend class PeerHelper;
+	friend class ConnectionReceiveThread;
+	friend class ConnectionSendThread;
 
 	Peer(u16 a_id, Address a_address, Connection* connection);
 	virtual ~Peer();
 	
-	/*
-		Calculates avg_rtt and resend_timeout.
-
-		rtt=-1 only recalculates resend_timeout
-	*/
-	void reportRTT(float rtt);
-
-	Channel channels[CHANNEL_COUNT];
+	float getAvgRTT()
+	{ return avg_rtt; };
 
 	// Address of the peer
 	Address address;
 	// Unique id of the peer
 	u16 id;
-	// Seconds from last receive
-	float timeout_counter;
-	// Ping timer
-	float ping_timer;
-
-	// Updated when an ACK is received
-	float avg_rtt;
-	// This is set to true when the peer has actually sent something
-	// with the id we have given to it
-	bool has_sent_with_id;
-
-	float m_sendtime_accu;
-
-	bool Ping(float dtime,SharedBuffer<u8>& data);
 
 	void Drop();
-
 	void PutReliableSendCommand(ConnectionCommand &c,
 					unsigned int max_packet_size);
+
+	bool isActive()
+	{ return ((has_sent_with_id) && (!m_pending_deletion)); };
+
+protected:
+	/*
+		Calculates avg_rtt and resend_timeout.
+		rtt=-1 only recalculates resend_timeout
+	*/
+	void reportRTT(float rtt);
+
 	void RunCommandQueues(
 					unsigned int max_packet_size,
 					unsigned int maxcommands,
 					unsigned int maxtransfer);
-
-	unsigned int m_num_sendable;
-	unsigned int m_num_sent;
-	float        m_sendable_accu;
 
 	float getResendTimeout()
 		{ JMutexAutoLock lock(m_exclusive_access_mutex); return resend_timeout; }
 
 	void setResendTimeout(float timeout)
 		{ JMutexAutoLock lock(m_exclusive_access_mutex); resend_timeout = timeout; }
+	bool Ping(float dtime,SharedBuffer<u8>& data);
 
-protected:
 	bool IncUseCount();
 	void DecUseCount();
 
+	Channel channels[CHANNEL_COUNT];
+
+	// This is set to true when the peer has actually sent something
+	// with the id we have given to it
+	bool has_sent_with_id;
+
+	// Seconds from last receive
+	float timeout_counter;
+
+	// Updated when an ACK is received
+	float avg_rtt;
+
+	unsigned int m_increment_packets_remaining;
 private:
+	// Ping timer
+	float ping_timer;
+
 	// This is changed dynamically
 	float resend_timeout;
 
