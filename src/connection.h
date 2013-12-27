@@ -605,6 +605,7 @@ public:
 	PeerHelper&   operator=(Peer* peer);
 	Peer*         operator->() const;
 	bool          operator!();
+	Peer*         operator&() const;
 	bool          operator!=(void* ptr);
 
 private:
@@ -613,7 +614,135 @@ private:
 
 class Connection;
 
-class Peer
+class Peer {
+	public:
+		friend class PeerHelper;
+		friend class ConnectionSendThread;
+		friend class ConnectionTCPSendThread;
+
+		Peer(Address address_,u16 id_,Connection* connection) :
+			address(address_),
+			id(id_),
+			avg_rtt(-1.0),
+			m_pending_deletion(false),
+			m_connection(connection),
+			m_increment_packets_remaining(9),
+			m_increment_bytes_remaining(0),
+			m_usage(0),
+			m_timeout_counter(0.0),
+			m_last_timeout_check(porting::getTimeMs()),
+			m_has_sent_with_id(false)
+		{
+		};
+
+		virtual ~Peer() {
+			JMutexAutoLock usage_lock(m_exclusive_access_mutex);
+			assert(m_usage == 0);
+		};
+
+		float getAvgRTT()
+		{ return avg_rtt; };
+
+		// Address of the peer
+		Address address;
+		// Unique id of the peer
+		u16 id;
+
+		void Drop();
+
+		virtual void PutReliableSendCommand(ConnectionCommand &c,
+						unsigned int max_packet_size) = 0;
+
+		virtual bool isActive() = 0;
+
+
+		void ResetTimeout()
+			{JMutexAutoLock lock(m_exclusive_access_mutex); m_timeout_counter=0.0; };
+
+		bool isTimedOut(float timeout);
+
+		void setSentWithID()
+		{ JMutexAutoLock lock(m_exclusive_access_mutex); m_has_sent_with_id = true; };
+
+		bool hasSentWithID()
+		{ JMutexAutoLock lock(m_exclusive_access_mutex); return m_has_sent_with_id; };
+
+	protected:
+		bool IncUseCount();
+		void DecUseCount();
+
+		// Updated when an ACK is received
+		float avg_rtt;
+
+		JMutex m_exclusive_access_mutex;
+
+		bool m_pending_deletion;
+
+		Connection* m_connection;
+
+		unsigned int m_increment_packets_remaining;
+		unsigned int m_increment_bytes_remaining;
+
+	private:
+		unsigned int m_usage;
+
+		// Seconds from last receive
+		float m_timeout_counter;
+
+		u32 m_last_timeout_check;
+
+		bool m_has_sent_with_id;
+
+};
+
+const char TCP_PACKET_START  = 0xAA;
+const char TCP_PACKET_END    = 0xBB;
+const char TCP_PACKET_ESCAPE = 0xEE;
+
+class TCPPeer : public Peer
+{
+public:
+	friend class PeerHelper;
+	friend class ConnectionSendThread;
+	friend class ConnectionTCPSendThread;
+	friend class ConnectionTCPReceiveThread;
+
+	TCPPeer(u16 a_id, Address a_address, Connection* connection, int fd) :
+		Peer(a_address,a_id,connection),
+		m_fd(fd),
+		m_splitSequenceNumber(SEQNUM_INITIAL),
+		m_incomingData(""),
+		m_in_packet(false),
+		m_last_was_escape(false)
+	{};
+	virtual ~TCPPeer() {};
+
+	void PutReliableSendCommand(ConnectionCommand &c,
+							unsigned int max_packet_size);
+
+	bool isActive();
+
+	bool sendTCPPacket(SharedBuffer<u8>);
+	SharedBuffer<u8> readPacket();
+	void readPackets();
+
+protected:
+	u16 getNextSplitSequenceNumber();
+	void setNextSplitSequenceNumber(u16 toset);
+
+	int m_fd;
+
+	u16 m_splitSequenceNumber;
+	Queue<ConnectionCommand> m_queued_commands[CHANNEL_COUNT];
+private:
+
+	std::string m_incomingData;
+	bool m_in_packet;
+	bool m_last_was_escape;
+	Queue< SharedBuffer<u8> > m_received_packets;
+};
+
+class UDPPeer : public Peer
 {
 public:
 
@@ -621,23 +750,14 @@ public:
 	friend class ConnectionReceiveThread;
 	friend class ConnectionSendThread;
 
-	Peer(u16 a_id, Address a_address, Connection* connection);
-	virtual ~Peer();
-	
-	float getAvgRTT()
-	{ return avg_rtt; };
+	UDPPeer(u16 a_id, Address a_address, Connection* connection);
+	virtual ~UDPPeer();
 
-	// Address of the peer
-	Address address;
-	// Unique id of the peer
-	u16 id;
-
-	void Drop();
 	void PutReliableSendCommand(ConnectionCommand &c,
-					unsigned int max_packet_size);
+							unsigned int max_packet_size);
 
 	bool isActive()
-	{ return ((has_sent_with_id) && (!m_pending_deletion)); };
+	{ return ((hasSentWithID()) && (!m_pending_deletion)); };
 
 	void setNonLegacyPeer()
 	{ m_legacy_peer = false; }
@@ -664,22 +784,7 @@ protected:
 		{ JMutexAutoLock lock(m_exclusive_access_mutex); resend_timeout = timeout; }
 	bool Ping(float dtime,SharedBuffer<u8>& data);
 
-	bool IncUseCount();
-	void DecUseCount();
-
 	Channel channels[CHANNEL_COUNT];
-
-	// This is set to true when the peer has actually sent something
-	// with the id we have given to it
-	bool has_sent_with_id;
-
-	// Seconds from last receive
-	float timeout_counter;
-
-	// Updated when an ACK is received
-	float avg_rtt;
-
-	unsigned int m_increment_packets_remaining;
 private:
 	// Ping timer
 	float ping_timer;
@@ -687,17 +792,11 @@ private:
 	// This is changed dynamically
 	float resend_timeout;
 
-	unsigned int m_usage;
-	bool m_pending_deletion;
-
-	JMutex m_exclusive_access_mutex;
-
 	bool processReliableSendCommand(
 					ConnectionCommand &c,
 					unsigned int max_packet_size);
 
 	bool m_legacy_peer;
-	Connection* m_connection;
 };
 
 /*
@@ -767,7 +866,7 @@ struct ConnectionEvent
 class ConnectionSendThread : public JThread {
 
 public:
-	friend class Peer;
+	friend class UDPPeer;
 
 	ConnectionSendThread(Connection* parent,
 							unsigned int max_packet_size, float timeout);
@@ -815,6 +914,32 @@ private:
 	unsigned int          m_max_packets_requeued;
 };
 
+class ConnectionTCPSendThread : public JThread {
+public:
+	ConnectionTCPSendThread(Connection* parent);
+
+	void * Thread       ();
+
+private:
+	void processReliableCommand (ConnectionCommand &c);
+	void sendReliable   (ConnectionCommand &c);
+	void sendToAllReliable(ConnectionCommand &c);
+	void processNonReliableCommand(ConnectionCommand &c);
+	void serve          (u16 port);
+	void connectToServer(Address address);
+	void disconnect     ();
+	void disconnect_peer(u16 peer_id);
+	void send           (u16 peer_id, u8 channelnum,
+							SharedBuffer<u8> data);
+	void sendToAll(u8 channelnum,
+							SharedBuffer<u8> data);
+
+	void sendPackets();
+
+	unsigned int          m_iteration_bytes;
+	Connection*           m_connection;
+};
+
 class ConnectionReceiveThread : public JThread {
 public:
 	ConnectionReceiveThread(Connection* parent,
@@ -850,11 +975,54 @@ private:
 	unsigned int          m_max_packet_size;
 };
 
+class ConnectionTCPReceiveThread : public JThread {
+public:
+	ConnectionTCPReceiveThread(Connection* parent);
+
+	virtual ~ConnectionTCPReceiveThread();
+
+	void * Thread       ();
+
+private:
+	void receive        ();
+
+	SharedBuffer<u8> processPacket(SharedBuffer<u8> packetdata, u16 peer_id);
+
+	void HandlePacketQueue(u16 peer_id);
+
+	Connection*           m_connection;
+};
+
+
+class ConnectionTCPServerThread : public JThread {
+public:
+	ConnectionTCPServerThread(Connection* parent);
+
+	void* Thread ();
+
+	void Open(unsigned int port,bool ipv6);
+	void Close();
+
+private:
+	TCPServerSocket       m_server_socket;
+	Connection*           m_connection;
+
+	bool                  m_open;
+};
+
+typedef enum MTProtocols {
+	TCP,
+	MINETEST_RELIABLE_UDP
+} MTProtocols;
+
 class Connection
 {
 public:
 	friend class ConnectionSendThread;
 	friend class ConnectionReceiveThread;
+	friend class ConnectionTCPServerThread;
+	friend class ConnectionTCPSendThread;
+	friend class ConnectionTCPReceiveThread;
 
 	Connection(u32 protocol_id, u32 max_packet_size, float timeout, bool ipv6);
 	Connection(u32 protocol_id, u32 max_packet_size, float timeout, bool ipv6,
@@ -887,8 +1055,9 @@ protected:
 	PeerHelper getPeerNoEx(u16 peer_id);
 	u16   lookupPeer(Address& sender);
 
-	u16 createPeer(Address& sender);
-	Peer* createServerPeer(Address& sender);
+	u16 createPeer(Address& sender, MTProtocols protocol, int fd);
+	UDPPeer* createServerPeer(Address& sender);
+	TCPPeer* createServerPeer(Address& address,int fd);
 	bool deletePeer(u16 peer_id, bool timeout);
 
 	void SetPeerID(u16 id){ m_peer_id = id; }
@@ -898,13 +1067,21 @@ protected:
 	void PrintInfo(std::ostream &out);
 	void PrintInfo();
 
+	bool startTCPServer(unsigned int port);
+	bool stopTcpServer();
+
 	std::list<u16> getPeerIDs();
 
 	UDPSocket m_socket;
 	MutexedQueue<ConnectionCommand> m_command_queue;
+	MutexedQueue<ConnectionCommand> m_tcp_command_queue;
 
 	void putEvent(ConnectionEvent &e);
 
+	void setWaitForPeerID(bool toset)
+		{ m_wait_for_peer_id = toset; };
+	bool waitForPeerID()
+		{ return m_wait_for_peer_id; };
 private:
 	std::list<Peer*> getPeers();
 
@@ -918,12 +1095,17 @@ private:
 
 	ConnectionSendThread m_sendThread;
 	ConnectionReceiveThread m_receiveThread;
+	ConnectionTCPServerThread m_tcpServerThread;
+	ConnectionTCPSendThread m_tcpSendThread;
+	ConnectionTCPReceiveThread m_tcpReceiveThread;
 
 	JMutex m_info_mutex;
 
 	// Backwards compatibility
 	PeerHandler *m_bc_peerhandler;
 	int m_bc_receive_timeout;
+
+	bool m_wait_for_peer_id;
 };
 
 } // namespace
