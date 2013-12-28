@@ -2245,7 +2245,7 @@ void Server::sendMediaAnnouncement(u16 peer_id)
 	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
 
 	// Send as reliable
-	m_con.Send(peer_id, 1, data, true);
+	m_con.Send(peer_id, 0, data, true);
 }
 
 void Server::sendRequestedMedia(u16 peer_id,
