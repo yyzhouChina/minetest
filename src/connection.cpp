@@ -847,6 +847,7 @@ Peer::Peer(u16 a_id, Address a_address, Connection* connection):
 	resend_timeout(0.5),
 	m_usage(0),
 	m_pending_deletion(false),
+	m_legacy_peer(true),
 	m_connection(connection)
 {
 }
@@ -1249,6 +1250,9 @@ void ConnectionSendThread::runTimeouts(float dtime)
 			std::list<BufferedPacket> timed_outs;
 			Channel *channel = &peer->channels[i];
 
+			if (peer->getLegacyPeer())
+				channel->setWindowSize(1);
+
 			// Remove timed out incomplete unreliable split packets
 			channel->incoming_splits.removeUnreliableTimedOuts(dtime, m_timeout);
 
@@ -1288,7 +1292,8 @@ void ConnectionSendThread::runTimeouts(float dtime)
 				// lost or really takes more time to transmit
 			}
 
-			channel->UpdateTimers(dtime);
+			if (!peer->getLegacyPeer())
+				channel->UpdateTimers(dtime);
 		}
 
 		/* send ping if necessary */
@@ -1433,6 +1438,15 @@ void ConnectionSendThread::processReliableCommand(ConnectionCommand &c)
 
 	case CONCMD_CREATE_PEER:
 		LOG(dout_con<<m_connection->getDesc()<<" processing reliable CONCMD_CREATE_PEER"<<std::endl);
+		if (!rawSendAsPacket(c.peer_id,c.channelnum,c.data,c.reliable))
+		{
+			/* put to queue if we couldn't send it immediately */
+			sendReliable(c);
+		}
+		return;
+
+	case CONCMD_DISABLE_LEGACY:
+		LOG(dout_con<<m_connection->getDesc()<<" processing reliable CONCMD_DISABLE_LEGACY"<<std::endl);
 		if (!rawSendAsPacket(c.peer_id,c.channelnum,c.data,c.reliable))
 		{
 			/* put to queue if we couldn't send it immediately */
@@ -2123,6 +2137,15 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 				LOG(dout_con<<m_connection->getDesc()<<"changing own peer id"<<std::endl);
 				m_connection->SetPeerID(peer_id_new);
 			}
+
+			ConnectionCommand cmd;
+
+			SharedBuffer<u8> reply(2);
+			writeU8(&reply[0], TYPE_CONTROL);
+			writeU8(&reply[1], CONTROLTYPE_ENABLE_BIG_SEND_WINDOW);
+			cmd.disableLegacy(PEER_ID_SERVER,reply);
+			m_connection->putCommand(cmd);
+
 			throw ProcessedSilentlyException("Got a SET_PEER_ID");
 		}
 		else if(controltype == CONTROLTYPE_PING)
@@ -2146,6 +2169,11 @@ SharedBuffer<u8> ConnectionReceiveThread::processPacket(Channel *channel,
 			}
 
 			throw ProcessedSilentlyException("Got a DISCO");
+		}
+		else if(controltype == CONTROLTYPE_ENABLE_BIG_SEND_WINDOW)
+		{
+			peer->setNonLegacyPeer();
+			throw ProcessedSilentlyException("Got non legacy control");
 		}
 		else{
 			LOG(derr_con<<m_connection->getDesc()

@@ -265,6 +265,7 @@ controltype and data description:
 #define CONTROLTYPE_SET_PEER_ID 1
 #define CONTROLTYPE_PING 2
 #define CONTROLTYPE_DISCO 3
+#define CONTROLTYPE_ENABLE_BIG_SEND_WINDOW 4
 /*
 ORIGINAL: This is a plain packet with no control and no error
 checking at all.
@@ -401,6 +402,7 @@ enum ConnectionCommandType{
 	CONNCMD_DELETE_PEER,
 	CONCMD_ACK,
 	CONCMD_CREATE_PEER,
+	CONCMD_DISABLE_LEGACY
 };
 
 struct ConnectionCommand
@@ -475,6 +477,16 @@ struct ConnectionCommand
 		reliable = true;
 		raw = true;
 	}
+
+	void disableLegacy(u16 peer_id_, SharedBuffer<u8> data_)
+	{
+		type = CONCMD_DISABLE_LEGACY;
+		peer_id = peer_id_;
+		data = data_;
+		channelnum = 0;
+		reliable = true;
+		raw = true;
+	}
 };
 
 class Channel
@@ -532,6 +544,8 @@ public:
 		{ JMutexAutoLock lock(m_internal_mutex); return avg_kbps_lost; };
 
 	const unsigned int getWindowSize() const { return window_size; };
+
+	void setWindowSize(unsigned int size) { window_size = size; };
 private:
 	JMutex m_internal_mutex;
 	unsigned int window_size;
@@ -625,6 +639,12 @@ public:
 	bool isActive()
 	{ return ((has_sent_with_id) && (!m_pending_deletion)); };
 
+	void setNonLegacyPeer()
+	{ m_legacy_peer = false; }
+
+	bool getLegacyPeer()
+	{ return m_legacy_peer; }
+
 protected:
 	/*
 		Calculates avg_rtt and resend_timeout.
@@ -676,6 +696,7 @@ private:
 					ConnectionCommand &c,
 					unsigned int max_packet_size);
 
+	bool m_legacy_peer;
 	Connection* m_connection;
 };
 

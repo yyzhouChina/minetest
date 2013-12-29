@@ -1555,7 +1555,7 @@ void Server::SendNodeDef(con::Connection &con, u16 peer_id,
 			<<"): size="<<s.size()<<std::endl;
 	SharedBuffer<u8> data((u8*)s.c_str(), s.size());
 	// Send as reliable
-	con.Send(peer_id, 0, data, true);
+	con.Send(peer_id, 1, data, true);
 }
 
 /*
