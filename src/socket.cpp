@@ -39,6 +39,7 @@ typedef int socklen_t;
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <netinet/in.h>
+	#include <netinet/tcp.h>
 	#include <fcntl.h>
 	#include <netdb.h>
 	#include <unistd.h>
@@ -618,7 +619,11 @@ void TCPServerSocket::Bind(unsigned int port,bool ipv6)
 
 		int opt = 0;
 		if (setsockopt(m_socket,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt)) < 0) {
-			throw SocketException("Failed to set reuseaddr flag");
+			throw SocketException("Failed to set SO_REUSEADDR flag");
+		}
+
+		if (setsockopt(m_socket,IPPROTO_TCP,TCP_NODELAY,&opt,sizeof(opt)) < 0) {
+			throw SocketException("Failed to set TCP_NODELAY flag");
 		}
 
 		struct sockaddr_in server_addr;

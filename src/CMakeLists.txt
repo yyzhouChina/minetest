@@ -160,7 +160,7 @@ else()
 		endif(APPLE)
 	endif(BUILD_CLIENT)
 	find_package(ZLIB REQUIRED)
-	set(PLATFORM_LIBS -lpthread -lrt ${CMAKE_DL_LIBS})
+	set(PLATFORM_LIBS -lpthread -lrt ${CMAKE_DL_LIBS} -lenet)
 	#set(CLIENT_PLATFORM_LIBS -lXxf86vm)
 	# This way Xxf86vm is found on OpenBSD too
 	find_library(XXF86VM_LIBRARY Xxf86vm)
