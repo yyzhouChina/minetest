@@ -563,9 +563,12 @@ void *EmergeThread::Thread() {
 			Set sent status of modified blocks on clients
 		*/
 
+
+		// FOR WHAT REASON??
 		// NOTE: Server's clients are also behind the connection mutex
 		//conlock: consistently takes 30-40ms to acquire
-		JMutexAutoLock lock(m_server->m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_server->m_client_list_mutex);
+
 		// Add the originally fetched block to the modified list
 		if (block)
 			modified_blocks[p] = block;

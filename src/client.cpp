@@ -288,10 +288,7 @@ Client::Client(
 
 Client::~Client()
 {
-	{
-		//JMutexAutoLock conlock(m_con_mutex); //bulk comment-out
-		m_con.Disconnect();
-	}
+	m_con.Disconnect();
 
 	m_mesh_update_thread.Stop();
 	m_mesh_update_thread.Wait();
@@ -325,15 +322,12 @@ Client::~Client()
 void Client::connect(Address address)
 {
 	DSTACK(__FUNCTION_NAME);
-	//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
 	m_con.SetTimeoutMs(0);
 	m_con.Connect(address);
 }
 
 bool Client::connectedAndInitialized()
 {
-	//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-
 	if(m_con.Connected() == false)
 		return false;
 	
@@ -368,13 +362,6 @@ void Client::step(float dtime)
 		//TimeTaker timer("ReceiveAll()", m_device);
 		// 0ms
 		ReceiveAll();
-	}
-	
-	{
-		//TimeTaker timer("m_con_mutex + m_con.RunTimeouts()", m_device);
-		// 0ms
-		//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-		m_con.RunTimeouts(dtime);
 	}
 
 	/*
@@ -440,9 +427,6 @@ void Client::step(float dtime)
 				/*
 					Send info to server
 				*/
-
-				// Env is locked so con can be locked.
-				//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
 				
 				core::list<v3s16>::Iterator i = deleted_blocks.begin();
 				core::list<v3s16> sendlist;
@@ -655,7 +639,6 @@ void Client::step(float dtime)
 		if(counter >= 10)
 		{
 			counter = 0.0;
-			//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
 			// connectedAndInitialized() is true, peer exists.
 			float avg_rtt = m_con.GetPeerAvgRTT(PEER_ID_SERVER);
 			infostream<<"Client: avg_rtt="<<avg_rtt<<std::endl;
@@ -1013,11 +996,7 @@ void Client::Receive()
 	SharedBuffer<u8> data;
 	u16 sender_peer_id;
 	u32 datasize;
-	{
-		//TimeTaker t1("con mutex and receive", m_device);
-		//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-		datasize = m_con.Receive(sender_peer_id, data);
-	}
+	datasize = m_con.Receive(sender_peer_id, data);
 	//TimeTaker t1("ProcessData", m_device);
 	ProcessData(*data, datasize, sender_peer_id);
 }
@@ -2036,7 +2015,6 @@ void Client::ProcessData(u8 *data, u32 datasize, u16 sender_peer_id)
 
 void Client::Send(u16 channelnum, SharedBuffer<u8> data, bool reliable)
 {
-	//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
 	m_con.Send(PEER_ID_SERVER, channelnum, data, reliable);
 }
 
@@ -2273,11 +2251,7 @@ void Client::sendPlayerPos()
 	myplayer->last_yaw = myplayer->getYaw();
 	myplayer->last_keyPressed = myplayer->keyPressed;
 
-	u16 our_peer_id;
-	{
-		//JMutexAutoLock lock(m_con_mutex); //bulk comment-out
-		our_peer_id = m_con.GetPeerID();
-	}
+	u16 our_peer_id = m_con.GetPeerID();
 	
 	// Set peer id if not set already
 	if(myplayer->peer_id == PEER_ID_INEXISTENT)

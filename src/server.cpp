@@ -766,7 +766,7 @@ Server::Server(
 
 	// Lock environment
 	JMutexAutoLock envlock(m_env_mutex);
-	JMutexAutoLock conlock(m_con_mutex);
+	JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 	// Initialize scripting
 
@@ -858,7 +858,7 @@ Server::~Server()
 		Send shutdown message
 	*/
 	{
-		JMutexAutoLock conlock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		std::wstring line = L"*** Server shutting down";
 
@@ -885,7 +885,7 @@ Server::~Server()
 
 	{
 		JMutexAutoLock envlock(m_env_mutex);
-		JMutexAutoLock conlock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		/*
 			Execute script shutdown hooks
@@ -922,7 +922,7 @@ Server::~Server()
 		Delete clients
 	*/
 	{
-		JMutexAutoLock clientslock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		for(std::map<u16, RemoteClient*>::iterator
 			i = m_clients.begin();
@@ -1055,13 +1055,6 @@ void Server::AsyncRunStep()
 	}
 
 	{
-		// Process connection's timeouts
-		JMutexAutoLock lock2(m_con_mutex);
-		ScopeProfiler sp(g_profiler, "Server: connection timeout processing");
-		m_con.RunTimeouts(dtime);
-	}
-
-	{
 		// This has to be called so that the client list gets synced
 		// with the peer list of the connection
 		handlePeerChanges();
@@ -1085,7 +1078,7 @@ void Server::AsyncRunStep()
 			m_time_of_day_send_timer = g_settings->getFloat("time_send_interval");
 
 			//JMutexAutoLock envlock(m_env_mutex);
-			JMutexAutoLock conlock(m_con_mutex);
+			JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 			u16 time = m_env->getTimeOfDay();
 			float time_speed = g_settings->getFloat("time_speed");
@@ -1137,7 +1130,7 @@ void Server::AsyncRunStep()
 	*/
 	{
 		JMutexAutoLock lock(m_env_mutex);
-		JMutexAutoLock lock2(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		ScopeProfiler sp(g_profiler, "Server: handle players");
 
@@ -1215,7 +1208,7 @@ void Server::AsyncRunStep()
 			Set the modified blocks unsent for all the clients
 		*/
 
-		JMutexAutoLock lock2(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		for(std::map<u16, RemoteClient*>::iterator
 				i = m_clients.begin();
@@ -1239,7 +1232,7 @@ void Server::AsyncRunStep()
 		{
 			counter = 0.0;
 
-			JMutexAutoLock lock2(m_con_mutex);
+			JMutexAutoLock clientlist_lock(m_client_list_mutex);
 			m_clients_names.clear();
 			if(m_clients.size() != 0)
 				infostream<<"Players:"<<std::endl;
@@ -1282,7 +1275,7 @@ void Server::AsyncRunStep()
 	{
 		//infostream<<"Server: Checking added and deleted active objects"<<std::endl;
 		JMutexAutoLock envlock(m_env_mutex);
-		JMutexAutoLock conlock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		ScopeProfiler sp(g_profiler, "Server: checking added and deleted objs");
 
@@ -1437,7 +1430,7 @@ void Server::AsyncRunStep()
 	*/
 	{
 		JMutexAutoLock envlock(m_env_mutex);
-		JMutexAutoLock conlock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		ScopeProfiler sp(g_profiler, "Server: sending object messages");
 
@@ -1555,7 +1548,7 @@ void Server::AsyncRunStep()
 	{
 		// We will be accessing the environment and the connection
 		JMutexAutoLock lock(m_env_mutex);
-		JMutexAutoLock conlock(m_con_mutex);
+		JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 		// Don't send too many at a time
 		//u32 count = 0;
@@ -1723,10 +1716,7 @@ void Server::Receive()
 	u16 peer_id;
 	u32 datasize;
 	try{
-		{
-			JMutexAutoLock conlock(m_con_mutex);
-			datasize = m_con.Receive(peer_id, data);
-		}
+		datasize = m_con.Receive(peer_id, data);
 
 		// This has to be called so that the client list gets synced
 		// with the peer list of the connection
@@ -1762,7 +1752,7 @@ void Server::ProcessData(u8 *data, u32 datasize, u16 peer_id)
 	DSTACK(__FUNCTION_NAME);
 	// Environment is locked first.
 	JMutexAutoLock envlock(m_env_mutex);
-	JMutexAutoLock conlock(m_con_mutex);
+	JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 	ScopeProfiler sp(g_profiler, "Server::ProcessData");
 
@@ -4212,7 +4202,7 @@ void Server::SendBlocks(float dtime)
 	DSTACK(__FUNCTION_NAME);
 
 	JMutexAutoLock envlock(m_env_mutex);
-	JMutexAutoLock conlock(m_con_mutex);
+	JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 	ScopeProfiler sp(g_profiler, "Server: sel and send blocks to clients");
 
@@ -5439,7 +5429,7 @@ PlayerSAO* Server::emergePlayer(const char *name, u16 peer_id)
 void Server::handlePeerChange(PeerChange &c)
 {
 	JMutexAutoLock envlock(m_env_mutex);
-	JMutexAutoLock conlock(m_con_mutex);
+	JMutexAutoLock clientlist_lock(m_client_list_mutex);
 
 	if(c.type == PEER_ADDED)
 	{

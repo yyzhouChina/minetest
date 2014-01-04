@@ -657,7 +657,7 @@ private:
 
 	// Connection
 	con::Connection m_con;
-	JMutex m_con_mutex;
+	JMutex m_client_list_mutex;
 	// Connected clients (behind the con mutex)
 	std::map<u16, RemoteClient*> m_clients;
 	std::vector<std::string> m_clients_names; //for announcing masterserver
