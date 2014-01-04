@@ -51,8 +51,11 @@ JMutex log_message_mutex;
 //#define DEBUG_CONNECTION_KBPS
 #undef DEBUG_CONNECTION_KBPS
 
-#define CALC_DTIME(lasttime,curtime)                                           \
-		MYMAX(MYMIN(((float) ( curtime - lasttime) / 1000),0.1),0.0)
+
+static inline float CALC_DTIME(unsigned int lasttime, unsigned int curtime) {
+	float value = ( curtime - lasttime) / 1000.0;
+	return MYMAX(MYMIN(value,0.1),0.0);
+}
 
 /* maximum window size to use, 0xFFFF is theoretical maximum  don't think about
  * touching it, the less you're away from it the more likely data corruption
@@ -1599,6 +1602,12 @@ void* ConnectionTCPSendThread::Thread()
 
 	while(!StopRequested())
 	{
+		/* wait for trigger or timeout */
+		m_send_sleep_semaphore.Wait(50);
+
+		/* remove all triggers */
+		while(m_send_sleep_semaphore.Wait(0)) {}
+
 		lasttime = curtime;
 		curtime = porting::getTimeMs();
 		float dtime = CALC_DTIME(lasttime,curtime);
@@ -1632,6 +1641,11 @@ void* ConnectionTCPSendThread::Thread()
 
 	PROFILE(g_profiler->removeADD(ThreadIdentifier.str()));
 	return NULL;
+}
+
+void ConnectionTCPSendThread::Trigger()
+{
+	m_send_sleep_semaphore.Post();
 }
 
 void ConnectionTCPSendThread::processReliableCommand(ConnectionCommand &c)
@@ -3843,6 +3857,8 @@ void Connection::putCommand(ConnectionCommand &c)
 			m_tcp_command_queue.push_back(c);
 		m_command_queue.push_back(c);
 		m_enet_command_queue.push_back(c);
+		m_sendThread.Trigger();
+		m_tcpSendThread.Trigger();
 		return;
 	}
 
@@ -3851,6 +3867,7 @@ void Connection::putCommand(ConnectionCommand &c)
 			m_tcp_command_queue.push_back(c);
 		else
 			m_command_queue.push_back(c);
+		m_tcpSendThread.Trigger();
 		return;
 	}
 
@@ -3898,6 +3915,7 @@ void Connection::putCommand(ConnectionCommand &c)
 
 		if (client_protocol == "legacy") {
 			m_command_queue.push_back(c);
+			m_sendThread.Trigger();
 		}
 		else if (client_protocol == "enet")
 		{
@@ -3905,9 +3923,15 @@ void Connection::putCommand(ConnectionCommand &c)
 		}
 		else{
 			if (c.reliable)
+			{
 				m_tcp_command_queue.push_back(c);
+				m_tcpSendThread.Trigger();
+			}
 			else
+			{
 				m_command_queue.push_back(c);
+				m_sendThread.Trigger();
+			}
 		}
 		return;
 	}
@@ -3992,7 +4016,6 @@ void Connection::SendToAll(u8 channelnum, SharedBuffer<u8> data, bool reliable)
 	ConnectionCommand c;
 	c.sendToAll(channelnum, data, reliable);
 	putCommand(c);
-	m_sendThread.Trigger();
 }
 
 void Connection::Send(u16 peer_id, u8 channelnum,

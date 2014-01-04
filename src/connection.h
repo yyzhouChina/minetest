@@ -691,10 +691,11 @@ class Peer {
 		virtual u16 getNextSplitSequenceNumber(u8 channel) { return 0; };
 		virtual void setNextSplitSequenceNumber(u8 channel, u16 seqnum) {};
 
-		virtual bool Ping(float dtime, SharedBuffer<u8>& data) { return false; };
+		virtual bool Ping(float dtime, SharedBuffer<u8>& data) = 0;
 
-		virtual void reportRTT(float rtt) {};
 	protected:
+		virtual void reportRTT(float rtt) {};
+
 		bool IncUseCount();
 		void DecUseCount();
 
@@ -815,6 +816,8 @@ public:
 		}
 		return false;
 	}
+
+	bool Ping(float dtime, SharedBuffer<u8>& data) { return false; }
 protected:
 	ENetPeer *m_peer;
 private:
@@ -1027,6 +1030,7 @@ public:
 
 	void * Thread       ();
 
+	void Trigger();
 private:
 	void runTimeouts(float dtime);
 	void processReliableCommand (ConnectionCommand &c);
@@ -1046,6 +1050,7 @@ private:
 
 	unsigned int          m_iteration_bytes;
 	Connection*           m_connection;
+	JSemaphore            m_send_sleep_semaphore;
 };
 
 class ConnectionReceiveThread : public JThread {
