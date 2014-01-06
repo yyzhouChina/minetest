@@ -739,6 +739,11 @@ function tabbuilder.handle_settings_buttons(fields)
 			engine.setting_set("client_protocol", "legacy")
 		end
 	end
+	if fields["cb_enet_connect"] then
+		if engine.is_yes(fields["cb_enet_connect"]) then
+			engine.setting_set("client_protocol", "enet")
+		end
+	end
 	
 	if fields["btn_change_keys"] ~= nil then
 		engine.show_keys_menu()
@@ -1030,6 +1035,7 @@ else
 	
 	local tcp_enabled = "false"
 	local legacy_enabled = "false"
+	local enet_enabled = "false"
 	
 	if connect_mode == "tcp" then
 		tcp_enabled = "true"
@@ -1038,12 +1044,19 @@ else
 		legacy_enabled = "true"
 	end
 	
+	if connect_mode == "enet" then
+		enet_enabled = "true"
+	end
+	
 	tab_string = tab_string ..
 			"checkbox[8,3;cb_tcp_connect;".. fgettext("TCP Client") .. ";"
 					.. tcp_enabled .. "]"
 	tab_string = tab_string ..
 			"checkbox[8,3.5;cb_legacy_connect;".. fgettext("Legacy Client") .. ";"
 					.. legacy_enabled .. "]"
+	tab_string = tab_string ..
+			"checkbox[8,4;cb_enet_connect;".. fgettext("ENET Client") .. ";"
+					.. enet_enabled .. "]"
 return tab_string
 end
 
