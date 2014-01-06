@@ -788,7 +788,6 @@ void Channel::UpdateTimers(float dtime)
 	}
 }
 
-
 /*
 	Peer
 */
@@ -1993,7 +1992,6 @@ void ConnectionReceiveThread::receive()
 	SharedBuffer<u8> packetdata(packet_maxsize);
 	
 	bool packet_queued = true;
-
 	unsigned int loop_count = 0;
 
 	/* first of all read packets from socket */
@@ -2566,6 +2564,7 @@ Connection::Connection(u32 protocol_id, u32 max_packet_size, float timeout,
 Connection::~Connection()
 {
 	m_shutting_down = true;
+
 	// request threads to stop
 	m_sendThread.Stop();
 	m_receiveThread.Stop();
