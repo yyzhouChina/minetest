@@ -1718,7 +1718,12 @@ struct TestConnection: public TestBase
 		UASSERT(hand_client.last_id == 1);
 		// Server should have the client
 		UASSERT(hand_server.count == 1);
-		UASSERT(hand_server.last_id == 2);
+		//client ID
+		UASSERT(
+				(hand_server.last_id == 2) ||
+				(hand_server.last_id == 16384+1) ||
+				(hand_server.last_id == 32768+1)
+				);
 		
 		//sleep_ms(50);
 
@@ -1780,7 +1785,7 @@ struct TestConnection: public TestBase
 			UASSERT(memcmp(*data, *recvdata, data.getSize()) == 0);
 		}
 #endif
-		u16 peer_id_client = 2;
+		u16 peer_id_client = hand_server.last_id;
 #if 0
 		/*
 			Send consequent packets in different order
@@ -1960,7 +1965,12 @@ struct TestConnection: public TestBase
 		UASSERT(hand_client.count == 1);
 		UASSERT(hand_client.last_id == 1);
 		UASSERT(hand_server.count == 1);
-		UASSERT(hand_server.last_id == 2);
+		//client ID
+		UASSERT(
+				(hand_server.last_id == 2) ||
+				(hand_server.last_id == 16384+1) ||
+				(hand_server.last_id == 32768+1)
+				);
 		
 		//assert(0);
 	}
