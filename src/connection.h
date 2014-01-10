@@ -805,8 +805,7 @@ public:
 			m_splitSequenceNumber[i] = SEQNUM_INITIAL;
 		}
 	};
-	virtual ~TCPPeer()
-		{ close(m_fd); };
+	virtual ~TCPPeer();
 
 	void PutReliableSendCommand(ConnectionCommand &c,
 							unsigned int max_packet_size);
@@ -1055,7 +1054,7 @@ private:
 	void sendToAllReliable(ConnectionCommand &c);
 	void processNonReliableCommand(ConnectionCommand &c);
 	void serve          (u16 port);
-	void connectToServer(Address address);
+	bool connectToServer(Address address);
 	bool send           (u16 peer_id, u8 channelnum,
 							SharedBuffer<u8> data);
 

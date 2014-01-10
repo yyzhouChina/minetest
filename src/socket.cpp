@@ -597,7 +597,7 @@ TCPServerSocket::~TCPServerSocket()
 {
 	if (m_initialized)
 	{
-		close(m_socket);
+		Close();
 	}
 }
 
@@ -635,9 +635,25 @@ void TCPServerSocket::Bind(unsigned int port,bool ipv6)
 		server_addr.sin_family = AF_INET;
 		server_addr.sin_port = htons(port);
 
-		if (bind(m_socket,(const sockaddr*) &server_addr,sizeof(server_addr)) < 0)
+		int loop = 10;
+
+		while( loop > 0)
 		{
-			throw SocketException("Failed to bind TCP socket");
+			loop--;
+			if (bind(m_socket,(const sockaddr*) &server_addr,sizeof(server_addr)) < 0)
+			{
+				if (loop <= 0)
+				{
+					throw SocketException("Failed to bind TCP socket");
+				}
+				else
+				{
+					sleep(10);
+				}
+			}
+			else {
+				break;
+			}
 		}
 
 		if (listen(m_socket, 5) < 0)
@@ -689,7 +705,23 @@ int TCPServerSocket::WaitForClient(Address& address, unsigned int timeout_ms)
 
 void TCPServerSocket::Close()
 {
+	int error = 1;
+	socklen_t length;
+
+	if (getsockopt(m_socket, SOL_SOCKET, SO_ERROR, (char *)&error, &length) < 0)
+	{
+		errorstream << "Failed to close TCP peer socket (drop errors),"
+				" expect errors on reconnect" << std::endl;
+	}
+	if (shutdown(m_socket,SHUT_RDWR) < 0)
+	{
+		errorstream << "Failed to close TCP peer socket (shutdown),"
+				" expect errors on reconnect" << std::endl;
+	}
+	if (close(m_socket) < 0)
+	{
+		errorstream << "Failed to close TCP peer socket (close),"
+				" expect errors on reconnect" << std::endl;
+	}
 	m_initialized = false;
-	shutdown(m_socket,SHUT_RDWR);
-	close(m_socket);
 }

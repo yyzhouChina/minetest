@@ -960,6 +960,28 @@ void Peer::Drop()
 	delete this;
 }
 
+TCPPeer::~TCPPeer()
+{
+	int error = 1;
+	socklen_t length;
+
+	if (getsockopt(m_fd, SOL_SOCKET, SO_ERROR, (char *)&error, &length) < 0)
+	{
+		LOG(errorstream << "Failed to close TCP peer socket (drop errors),"
+				" expect errors on reconnect" << std::endl);
+	}
+	if (shutdown(m_fd,SHUT_RDWR) < 0)
+	{
+		LOG(errorstream << "Failed to close TCP peer socket (shutdown),"
+				" expect errors on reconnect" << std::endl);
+	}
+	if (close(m_fd) < 0)
+	{
+		LOG(errorstream << "Failed to close TCP peer socket (close),"
+				" expect errors on reconnect" << std::endl);
+	}
+}
+
 void TCPPeer::PutReliableSendCommand(ConnectionCommand &c,
 						unsigned int max_packet_size)
 {
@@ -1172,14 +1194,14 @@ bool TCPPeer::sendTCPPacket(SharedBuffer<u8> tosend_,bool& completed)
 
 void TCPPeer::readPackets()
 {
-	unsigned int bytes_read = 0;
+	int bytes_read = 0;
 	char buffer[1024];
 
 	do
 	{
 		bytes_read = read(m_fd,buffer,sizeof(buffer));
 
-		for(unsigned int i=0; i < bytes_read; i++) {
+		for(int i=0; i < bytes_read; i++) {
 			char toadd = buffer[i];
 			if (m_last_was_escape == false ) {
 				if ( toadd == TCP_PACKET_ESCAPE) {
@@ -1640,8 +1662,8 @@ void ConnectionTCPSendThread::processNonReliableCommand(ConnectionCommand &c)
 
 	case CONNCMD_CONNECT:
 		LOG(dout_con<<m_connection->getDesc()<<"TCP processing CONNCMD_CONNECT"<<std::endl);
-		connectToServer(c.address);
-		m_connection->setWaitForPeerID(true);
+		if (connectToServer(c.address))
+			m_connection->setWaitForPeerID(true);
 		return;
 
 	case CONNCMD_DELETE_PEER:
@@ -1662,7 +1684,7 @@ void ConnectionTCPSendThread::serve(u16 port)
 	m_connection->startTCPServer(port);
 }
 
-void ConnectionTCPSendThread::connectToServer(Address address)
+bool ConnectionTCPSendThread::connectToServer(Address address)
 {
 	LOG(dout_con<<m_connection->getDesc()<<"TCP connecting to "<<address.serializeString()
 			<<":"<<address.getPort()<<std::endl);
@@ -1683,22 +1705,50 @@ void ConnectionTCPSendThread::connectToServer(Address address)
 	server.sin_addr.s_addr = address.getAddress().sin_addr.s_addr;
 
 	if (connect(clientsocket,(sockaddr*) &server,sizeof(server)) != 0) {
-		//TODO throw exception
+		socklen_t length;
+		LOG(derr_con << "Failed to connect to server, cleaning up socket" << std::endl);
+		if (getsockopt(clientsocket, SOL_SOCKET, SO_ERROR, (char *)&opt,(socklen_t*)&length) < 0)
+		{
+			LOG(derr_con << "Failed to cleanup TCP connect socket (drop errors),"
+					" expect errors on reconnect" << std::endl);
+		}
+		if (shutdown(clientsocket,SHUT_RDWR) < 0)
+		{
+			LOG(derr_con << "Failed to cleanup TCP connect socket (shutdown),"
+					" expect errors on reconnect" << std::endl);
+		}
+		if (close(clientsocket) < 0)
+		{
+			LOG(derr_con << "Failed to cleanup TCP connect socket (close),"
+					" expect errors on reconnect" << std::endl);
+		}
+
+		//sleep a second to avoid spaming
+		sleep_ms(1000);
+		//requeue connect command
+		ConnectionCommand cmd;
+		cmd.connect(address);
+		m_connection->putCommand(cmd);
+		return false;
 	}
+	else {
 
-	TCPPeer *peer = m_connection->createServerPeer(address,clientsocket);
+		TCPPeer *peer = m_connection->createServerPeer(address,clientsocket);
 
-	// Create event
-	ConnectionEvent e;
-	e.peerAdded(peer->id, peer->address);
-	m_connection->putEvent(e);
+		// Create event
+		ConnectionEvent e;
+		e.peerAdded(peer->id, peer->address);
+		m_connection->putEvent(e);
 
 
-	// Send a dummy packet to server with peer_id = PEER_ID_INEXISTENT
-	m_connection->SetPeerID(PEER_ID_INEXISTENT);
+		// Send a dummy packet to server with peer_id = PEER_ID_INEXISTENT
+		m_connection->SetPeerID(PEER_ID_INEXISTENT);
 
-	SharedBuffer<u8> data(0);
-	m_connection->Send(PEER_ID_SERVER, 0, data, true);
+		SharedBuffer<u8> data(0);
+		m_connection->Send(PEER_ID_SERVER, 0, data, true);
+
+		return true;
+	}
 }
 
 bool ConnectionTCPSendThread::send(u16 peer_id, u8 channelnum,
