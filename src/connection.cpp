@@ -1985,11 +1985,10 @@ void * ConnectionReceiveThread::Thread()
 // Receive packets from the network and buffers and create ConnectionEvents
 void ConnectionReceiveThread::receive()
 {
-	/* now reorder reliables */
-	u32 datasize = m_max_packet_size * 2;  // Double it just to be safe
-	// TODO: We can not know how many layers of header there are.
-	// For now, just assume there are no other than the base headers.
-	u32 packet_maxsize = datasize + BASE_HEADER_SIZE;
+	// use IPv6 minimum allowed MTU as receive buffer size as this is
+	// theoretical reliable upper boundary of a udp packet for all IPv6 enabled
+	// infrastructure
+	unsigned int packet_maxsize = 1500;
 	SharedBuffer<u8> packetdata(packet_maxsize);
 	
 	bool packet_queued = true;
@@ -2125,7 +2124,7 @@ void ConnectionReceiveThread::receive()
 			
 			LOG(dout_con<<m_connection->getDesc()
 					<<" ProcessPacket from peer_id: " << peer_id
-					<< ",channel: " << channelnum << ", returned "
+					<< ",channel: " << (channelnum & 0xFF) << ", returned "
 					<< resultdata.getSize() << " bytes" <<std::endl);
 			
 			ConnectionEvent e;
@@ -2809,11 +2808,6 @@ void Connection::Send(u16 peer_id, u8 channelnum,
 	putCommand(c);
 }
 
-void Connection::RunTimeouts(float dtime)
-{
-	// No-op
-}
-
 Address Connection::GetPeerAddress(u16 peer_id)
 {
 	PeerHelper peer = getPeerNoEx(peer_id);
@@ -2873,11 +2867,6 @@ u16 Connection::createPeer(Address& sender, MTProtocols protocol, int fd)
 	m_peers[peer->id] = peer;
 	m_peers_mutex.Unlock();
 
-	// Create peer addition event
-	ConnectionEvent e;
-	e.peerAdded(peer_id_new, sender);
-	putEvent(e);
-
 	ConnectionCommand cmd;
 	SharedBuffer<u8> reply(4);
 	writeU8(&reply[0], TYPE_CONTROL);
@@ -2885,6 +2874,11 @@ u16 Connection::createPeer(Address& sender, MTProtocols protocol, int fd)
 	writeU16(&reply[2], peer_id_new);
 	cmd.createPeer(peer_id_new,reply);
 	this->putCommand(cmd);
+
+	// Create peer addition event
+	ConnectionEvent e;
+	e.peerAdded(peer_id_new, sender);
+	putEvent(e);
 
 	// We're now talking to a valid peer_id
 	return peer_id_new;

@@ -580,16 +580,29 @@ private:
 
 class Peer;
 
+enum PeerChangeType
+{
+	PEER_ADDED,
+	PEER_REMOVED
+};
+struct PeerChange
+{
+	PeerChangeType type;
+	u16 peer_id;
+	bool timeout;
+};
+
 class PeerHandler
 {
 public:
+
 	PeerHandler()
 	{
 	}
 	virtual ~PeerHandler()
 	{
 	}
-	
+
 	/*
 		This is called after the Peer has been inserted into the
 		Connection's peer container.
@@ -1002,7 +1015,6 @@ public:
 	u32 Receive(u16 &peer_id, SharedBuffer<u8> &data);
 	void SendToAll(u8 channelnum, SharedBuffer<u8> data, bool reliable);
 	void Send(u16 peer_id, u8 channelnum, SharedBuffer<u8> data, bool reliable);
-	void RunTimeouts(float dtime); // dummy
 	u16 GetPeerID(){ return m_peer_id; }
 	Address GetPeerAddress(u16 peer_id);
 	float GetPeerAvgRTT(u16 peer_id);
