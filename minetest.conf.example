@@ -252,6 +252,8 @@
 #motd = Welcome to this awesome Minetest server!
 # Maximum number of players connected simultaneously
 #max_users = 15
+# Maximum number of clients to join (receive definitions/media/playerdata) same time
+#max_concurrent_joins = 3
 # Set to true to disallow old clients from connecting
 #strict_protocol_version_checking = false
 # Set to true to enable creative mode (unlimited inventory)
