@@ -595,6 +595,8 @@ public:
 	void peerAdded(con::Peer *peer);
 	void deletingPeer(con::Peer *peer, bool timeout);
 
+	void DenyAccess(u16 peer_id, const std::wstring &reason);
+
 private:
 	void SendMovement(u16 peer_id);
 	void SendHP(u16 peer_id, u8 hp);
@@ -673,7 +675,6 @@ private:
 
 	void DiePlayer(u16 peer_id);
 	void RespawnPlayer(u16 peer_id);
-	void DenyAccess(u16 peer_id, const std::wstring &reason);
 	void DeleteClient(u16 peer_id, ClientDeletionReason reason);
 	void UpdateCrafting(u16 peer_id);
 
