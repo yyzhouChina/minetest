@@ -4447,8 +4447,8 @@ void Server::sendAddNode(v3s16 p, MapNode n, u16 ignore_id,
 
 void Server::setBlockNotSent(v3s16 p)
 {
-	m_clients.Lock();
 	std::list<u16> clients = m_clients.getClientIDs();
+	m_clients.Lock();
 	for(std::list<u16>::iterator
 		i = clients.begin();
 		i != clients.end(); ++i)
