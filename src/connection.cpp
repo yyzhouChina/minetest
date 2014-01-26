@@ -2838,8 +2838,9 @@ void ConnectionSendThread::sendPackets(float dtime)
 
 	}
 
+	unsigned int initial_queuesize = m_outgoing_queue.size();
 	/* send non reliable packets*/
-	for(unsigned int i=0;i < m_outgoing_queue.size();i++) {
+	for(unsigned int i=0;i < initial_queuesize;i++) {
 		OutgoingPacket packet = m_outgoing_queue.pop_front();
 
 		assert(!packet.reliable &&
