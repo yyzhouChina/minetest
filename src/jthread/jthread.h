@@ -43,11 +43,14 @@ public:
 	JThread();
 	virtual ~JThread();
 	int Start();
-	void Stop();
+	inline void Stop()
+		{ requeststop = true; }
 	int Kill();
 	virtual void *Thread() = 0;
-	bool IsRunning();
-	bool StopRequested();
+	inline bool IsRunning()
+		{ return running; };
+	inline bool StopRequested()
+		{ return requeststop; }
 	void *GetReturnValue();
 	bool IsSameThread();
 

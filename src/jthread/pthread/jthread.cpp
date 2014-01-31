@@ -46,12 +46,6 @@ JThread::~JThread()
 	Kill();
 }
 
-void JThread::Stop() {
-	runningmutex.Lock();
-	requeststop = true;
-	runningmutex.Unlock();
-}
-
 void JThread::Wait() {
 	void* status;
 	runningmutex.Lock();
@@ -146,25 +140,6 @@ int JThread::Kill()
 	running = false;
 	runningmutex.Unlock();
 	return 0;
-}
-
-bool JThread::IsRunning()
-{
-	bool r;
-
-	runningmutex.Lock();
-	r = running;
-	runningmutex.Unlock();
-	return r;
-}
-
-bool JThread::StopRequested() {
-	bool r;
-
-	runningmutex.Lock();
-	r = requeststop;
-	runningmutex.Unlock();
-	return r;
 }
 
 void *JThread::GetReturnValue()
