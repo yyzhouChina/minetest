@@ -403,6 +403,10 @@ if(WIN32)
 	endif(MINGW)
 endif()
 
+if (HAVE_TOUCHSCREENGUI)
+	set(optional_client_SRCS ${optional_client_SRCS} touchscreengui.cpp)
+endif(HAVE_TOUCHSCREENGUI)
+
 # Client sources
 set(minetest_SRCS
 	${common_SRCS}
@@ -442,7 +446,7 @@ set(minetest_SRCS
 	guiEngine.cpp
 	guiFileSelectMenu.cpp
 	convert_json.cpp
-	touchscreengui.cpp
+	${optional_client_SRCS}
 	${minetest_SCRIPT_SRCS}
 )
 

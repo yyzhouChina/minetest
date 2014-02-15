@@ -1773,7 +1773,9 @@ void the_game(
 
 		// Input handler step() (used by the random input generator)
 		input->step(dtime);
+#ifdef HAVE_TOUCHSCREENGUI
 		touchscreengui->step(dtime);
+#endif
 
 		// Increase timer for doubleclick of "jump"
 		if(g_settings->getBool("doubletap_jump") && jump_timer <= 0.2)
@@ -1811,9 +1813,10 @@ void the_game(
 			menu->setFormSource(src);
 			menu->setTextDest(new TextDestPlayerInventory(&client));
 			menu->drop();
-
+#ifdef HAVE_TOUCHSCREENGUI
 			if (touchscreengui)
 				touchscreengui->Hide();
+#endif
 		}
 		else if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey))
 		{
@@ -2116,8 +2119,10 @@ void the_game(
 				}
 			}
 		}
+#ifdef HAVE_TOUCHSCREENGUI
 		if (touchscreengui->hasPlayerItemChanged())
 			new_playeritem = touchscreengui->getPlayerItem();
+#endif
 
 		// Viewing range selection
 		if(input->wasKeyDown(getKeySetting("keymap_rangeselect")))
@@ -2623,8 +2628,10 @@ void the_game(
 			d = 4.0;
 		core::line3d<f32> shootline(camera_position,
 				camera_position + camera_direction * BS * (d+1));
+#ifdef HAVE_TOUCHSCREENGUI
 		if (touchscreengui)
 			shootline = touchscreengui->getShootline();
+#endif
 
 		ClientActiveObject *selected_object = NULL;
 
@@ -3437,7 +3444,12 @@ void the_game(
 		/*
 			Draw crosshair (only when no touchscreen gui is used)
 		*/
-		if (show_hud && !touchscreengui)
+		if (
+			show_hud
+#ifdef HAVE_TOUCHSCREENGUI
+			&& !touchscreengui
+#endif
+			)
 			hud.drawCrosshair();
 
 		} // timer

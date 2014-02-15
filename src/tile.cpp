@@ -827,6 +827,11 @@ void TextureSource::rebuildImagesAndTextures()
 video::ITexture* TextureSource::generateTextureFromMesh(
 		const TextureFromMeshParams &params)
 {
+#ifdef ANDROID
+	errorstream<<"TextureSource::generateTextureFromMesh(): "
+			<<"Disabled for GLESv1 compatibility."<<std::endl;
+	return NULL;
+#endif
 	video::IVideoDriver *driver = m_device->getVideoDriver();
 	assert(driver);
 

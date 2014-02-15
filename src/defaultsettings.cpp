@@ -219,7 +219,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("congestion_control_max_rate", "400");
 	settings->setDefault("congestion_control_min_rate", "10");
 	settings->setDefault("remote_media", "");
-	settings->setDefault("debug_log_level", "2");
+	settings->setDefault("debug_log_level", "4");
 	settings->setDefault("emergequeue_limit_total", "256");
 	settings->setDefault("emergequeue_limit_diskonly", "32");
 	settings->setDefault("emergequeue_limit_generate", "32");
@@ -273,9 +273,18 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("language", "");
 
 #ifdef HAVE_TOUCHSCREENGUI
-	settings->setDefault("touchscreen", "1");
+	settings->setDefault("touchscreen", "true");
 #else
-	settings->setDefault("touchscreen", "0");
+	settings->setDefault("touchscreen", "false");
+#endif
+
+#ifdef ANDROID
+	settings->setDefault("screenW", "0");
+	settings->setDefault("screenH", "0");
+	settings->setDefault("enable_shaders", "false");
+	settings->setDefault("fullscreen", "true");
+	settings->setDefault("enable_particles", "false");
+	settings->setDefault("video_driver", "ogles1");
 #endif
 }
 

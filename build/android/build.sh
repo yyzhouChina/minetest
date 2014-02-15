@@ -28,7 +28,7 @@ if [ ! -d "irrlicht" ]; then
 	svn co http://svn.code.sf.net/p/irrlicht/code/branches/ogl-es/ irrlicht || exit 1
 	echo ">> Applying irrlicht.patch"
 	cd irrlicht
-	patch -p0 < $ROOT/irrlicht.patch || exit 1
+	#patch -p0 < $ROOT/irrlicht.patch || exit 1
 fi
 
 echo ">> Building LevelDB"
@@ -39,12 +39,38 @@ echo ">> Building Irrlicht"
 cd $ROOT/deps/irrlicht/source/Irrlicht/Android/
 $ANDROID_NDK/ndk-build NDEBUG=$NDEBUG -j8 || exit 1
 
-echo ">> Building Freeminer"
+echo ">> Generating Assets"
+mkdir -p $ROOT/assets
+mkdir -p $ROOT/assets/Minetest
+
+cp $ROOT/../../minetest.conf.example $ROOT/assets/Minetest
+cp $ROOT/../../README.txt $ROOT/assets/Minetest
+echo "builtin"
+cp -r $ROOT/../../builtin $ROOT/assets/Minetest
+echo "client"
+cp -r $ROOT/../../client $ROOT/assets/Minetest
+echo "doc"
+cp -r $ROOT/../../doc $ROOT/assets/Minetest
+echo "fonts"
+cp -r $ROOT/../../fonts $ROOT/assets/Minetest
+echo "games"
+cp -r $ROOT/../../games $ROOT/assets/Minetest
+echo "mods"
+cp -r $ROOT/../../mods $ROOT/assets/Minetest
+echo "po"
+cp -r $ROOT/../../po $ROOT/assets/Minetest
+echo "textures"
+cp -r $ROOT/../../textures $ROOT/assets/Minetest
+
+cd $ROOT/assets
+ls -R | grep ":$" | sed -e 's/:$//' -e 's/\.//' -e 's/^\///' > "index.txt"
+
+echo ">> Building Minetest"
 cd $ROOT
 $ANDROID_NDK/ndk-build NDEBUG=$NDEBUG -j8 || exit 1
 ant debug || exit 1
 
 echo "++ Success!"
-echo "APK: bin/Freeminer-debug.apk"
-echo "You can install it with \`adb install -r bin/Freeminer-debug.apk\`"
+echo "APK: bin/Minetest-debug.apk"
+echo "You can install it with \`adb install -r bin/Minetest-debug.apk\`"
 echo "or build a release version with \`ant release\`"

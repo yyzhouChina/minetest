@@ -60,13 +60,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 			<< parts[b] << "\"" << std::endl;								\
 			return;															\
 	}
-
-#ifdef ANDROID
-#include <android_native_app_glue.h>
-extern android_app *app_global;
-extern JNIEnv *jnienv;
-#endif
-
 /*
 	GUIFormSpecMenu
 */
@@ -1152,9 +1145,9 @@ void GUIFormSpecMenu::parseImageButton(parserData* data,std::string element,std:
 			if (parts[6] == "false")
 				drawborder = false;
 		}
-		
+
 		std::string pressed_image_name = "";
-		
+
 		if ((parts.size() == 8)) {
 			pressed_image_name = parts[7];
 		}
@@ -1395,7 +1388,7 @@ void GUIFormSpecMenu::parseListColors(parserData* data,std::string element) {
 	if ((parts.size() == 2) || (parts.size() == 3) || (parts.size() == 5)) {
 		parseColor(parts[0], m_slotbg_n, false);
 		parseColor(parts[1], m_slotbg_h, false);
-		
+
 		if (parts.size() >= 3) {
 			if (parseColor(parts[2], m_slotbordercolor, false)) {
 				m_slotborder = true;
@@ -1598,9 +1591,9 @@ void GUIFormSpecMenu::regenerateGui(v2u32 screensize)
 	// A proceed button is added if there is no size[] element
 	mydata.bp_set = 0;
 
-	
+
 	/* Convert m_init_draw_spec to m_inventorylists */
-	
+
 	m_inventorylists.clear();
 	m_images.clear();
 	m_backgrounds.clear();
@@ -1680,7 +1673,7 @@ void GUIFormSpecMenu::regenerateGui(v2u32 screensize)
 GUIFormSpecMenu::ItemSpec GUIFormSpecMenu::getItemAtPos(v2s32 p) const
 {
 	core::rect<s32> imgrect(0,0,imgsize.X,imgsize.Y);
-	
+
 	for(u32 i=0; i<m_inventorylists.size(); i++)
 	{
 		const ListDrawSpec &s = m_inventorylists[i];
@@ -1711,7 +1704,7 @@ void GUIFormSpecMenu::drawList(const ListDrawSpec &s, int phase)
 	gui::IGUISkin* skin = Environment->getSkin();
 	if (skin)
 		font = skin->getFont();
-	
+
 	Inventory *inv = m_invmgr->getInventory(s.inventoryloc);
 	if(!inv){
 		infostream<<"GUIFormSpecMenu::drawList(): WARNING: "
@@ -1728,9 +1721,9 @@ void GUIFormSpecMenu::drawList(const ListDrawSpec &s, int phase)
 				<<std::endl;
 		return;
 	}
-	
+
 	core::rect<s32> imgrect(0,0,imgsize.X,imgsize.Y);
-	
+
 	for(s32 i=0; i<s.geom.X*s.geom.Y; i++)
 	{
 		s32 item_i = i + s.start_item_i;
@@ -1825,7 +1818,7 @@ void GUIFormSpecMenu::drawSelectedItem()
 	gui::IGUISkin* skin = Environment->getSkin();
 	if (skin)
 		font = skin->getFont();
-	
+
 	Inventory *inv = m_invmgr->getInventory(m_selected_item->inventoryloc);
 	assert(inv);
 	InventoryList *list = inv->getList(m_selected_item->listname);
@@ -1847,10 +1840,11 @@ void GUIFormSpecMenu::drawMenu()
 			regenerateGui(m_screensize_old);
 		}
 	}
-
+#ifdef HAVE_TOUCHSCREENGUI
 	if (touchscreengui)
 		m_pointer = touchscreengui->getMousePos();
 	else
+#endif
 		m_pointer = m_device->getCursorControl()->getPosition();
 
 	updateSelectedItem();
@@ -1859,7 +1853,7 @@ void GUIFormSpecMenu::drawMenu()
 	if (!skin)
 		return;
 	video::IVideoDriver* driver = Environment->getVideoDriver();
-	
+
 	v2u32 screenSize = driver->getScreenSize();
 	core::rect<s32> allbg(0, 0, screenSize.X ,	screenSize.Y);
 	if (m_bgfullscreen)
@@ -1903,7 +1897,7 @@ void GUIFormSpecMenu::drawMenu()
 			errorstream << "\t" << spec.name << std::endl;
 		}
 	}
-	
+
 	/*
 		Draw Boxes
 	*/
@@ -1952,7 +1946,7 @@ void GUIFormSpecMenu::drawMenu()
 			errorstream << "\t" << spec.name << std::endl;
 		}
 	}
-	
+
 	/*
 		Draw item images
 	*/
@@ -1977,7 +1971,7 @@ void GUIFormSpecMenu::drawMenu()
 					core::dimension2di(texture->getOriginalSize())),
 			NULL/*&AbsoluteClippingRect*/, colors, true);
 	}
-	
+
 	/*
 		Draw items
 		Phase 0: Item slot rectangles
@@ -1994,7 +1988,7 @@ void GUIFormSpecMenu::drawMenu()
 		Call base class
 	*/
 	gui::IGUIElement::draw();
-	
+
 	/*
 		Draw fields/buttons tooltips
 	*/
@@ -2019,7 +2013,7 @@ void GUIFormSpecMenu::drawMenu()
 			}
 		}
 	}
-	
+
 	/*
 		Draw dragged item stack
 	*/
@@ -2288,7 +2282,7 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 			Environment->getRootGUIElement()->getElementFromPoint(
 				core::position2d<s32>(event.MouseInput.X, event.MouseInput.Y));
 		if (hovered->getType() == irr::gui::EGUIET_EDIT_BOX)
-			porting::displayKeyboard(true, app_global, jnienv);
+			porting::displayKeyboard(true, porting::app_global, porting::jnienv);
 	}
 	#endif
 
@@ -2419,7 +2413,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			{ button = 1; updown = 1; }
 		else if(event.MouseInput.Event == EMIE_MMOUSE_LEFT_UP)
 			{ button = 2; updown = 1; }
-
+#ifdef HAVE_TOUCHSCREENGUI
 		if (touchscreengui) {
 			updown = 0;
 			if (touchscreengui->isSingleClick())
@@ -2432,7 +2426,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			if (updown != 2)
 				touchscreengui->resetClicks();
 		}
-
+#endif
 		// Set this number to a positive value to generate a move action
 		// from m_selected_item to s.
 		u32 move_amount = 0;

@@ -19,6 +19,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <assert.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <stdio.h>
 #include "jthread/jsemaphore.h"
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
@@ -31,7 +32,15 @@ JSemaphore::JSemaphore() {
 
 JSemaphore::~JSemaphore() {
 	int sem_destroy_retval = sem_destroy(&m_semaphore);
+#ifdef ANDROID
+// WORKAROUND for broken bionic semaphore implementation!
+	assert(
+			(sem_destroy_retval == 0) ||
+			(errno == EBUSY)
+		);
+#else
 	assert(sem_destroy_retval == 0);
+#endif
 	UNUSED(sem_destroy_retval);
 }
 

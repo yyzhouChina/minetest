@@ -40,15 +40,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 	#pragma comment(lib, "Shell32.lib")
 #endif
 
-#ifdef ANDROID
-	#include <android_native_app_glue.h>
-	#include <android/log.h>
-
-	#define APPNAME "Freeminer"
-#endif
-
 #include "irrlicht.h" // createDevice
-
 #include "main.h"
 #include "mainmenumanager.h"
 #include <iostream>
@@ -252,7 +244,6 @@ public:
 */
 
 static v2u32 screensize;
-extern TouchScreenGUI *touchscreengui;
 
 class MyEventReceiver : public IEventReceiver
 {
@@ -260,8 +251,10 @@ public:
 	// This is the one method that we have to implement
 	virtual bool OnEvent(const SEvent& event)
 	{
+#ifdef HAVE_TOUCHSCREENGUI
 		if (touchscreengui)
 			touchscreengui->OnEvent(event);
+#endif
 
 		/*
 			React to nothing here if a menu is active
@@ -282,7 +275,12 @@ public:
 			}
 		}
 
-		if(event.EventType == irr::EET_MOUSE_INPUT_EVENT && !touchscreengui)
+		if(
+				event.EventType == irr::EET_MOUSE_INPUT_EVENT
+#ifdef HAVE_TOUCHSCREENGUI
+				&& !touchscreengui
+#endif
+				)
 		{
 			if(noMenuActive() == false)
 			{
@@ -317,6 +315,12 @@ public:
 					mouse_wheel += event.MouseInput.Wheel;
 				}
 			}
+		}
+
+		if(event.EventType == irr::EET_LOG_TEXT_EVENT)
+		{
+			dstream<<"Irrlicht log: "<<event.LogEvent.Text<<std::endl;
+			return true;
 		}
 
 		return false;
@@ -764,17 +768,13 @@ static void print_worldspecs(const std::vector<WorldSpec> &worldspecs,
 	}
 }
 
-
-#ifdef ANDROID
-android_app *app_global;
-JNIEnv *jnienv;
-#endif
-
 int main(int argc, char *argv[])
 {
+#ifndef NDEBUG
 	// well android lags anyway so no one will notice anything
 	// (this is actually needed to give GDB time to attach before everything crashes)
 	sleep(5);
+#endif
 	int retval = 0;
 
 	/*
@@ -903,8 +903,24 @@ int main(int argc, char *argv[])
 
 	porting::initializePaths();
 
+#ifdef ANDROID
+	porting::jnienv = NULL;
+	JavaVM *jvm = porting::app_global->activity->vm;
+	JavaVMAttachArgs lJavaVMAttachArgs;
+	lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+	lJavaVMAttachArgs.name = "NativeThread";
+	lJavaVMAttachArgs.group = NULL;
+	jvm->AttachCurrentThread(&porting::jnienv, &lJavaVMAttachArgs);
+
+	porting::setExternalStorageDir(porting::jnienv);
+	if (!fs::PathExists(porting::path_user)) {
+		fs::CreateDir(porting::path_user);
+		porting::extractAssets(porting::app_global);
+	}
+#else
 	// Create user data directory
 	fs::CreateDir(porting::path_user);
+#endif
 
 	infostream<<"path_share = "<<porting::path_share<<std::endl;
 	infostream<<"path_user  = "<<porting::path_user<<std::endl;
@@ -1470,17 +1486,8 @@ int main(int argc, char *argv[])
 	params.Vsync         = vsync;
 	params.EventReceiver = &receiver;
 	params.HighPrecisionFPU = g_settings->getBool("high_precision_fpu");
-
 #ifdef ANDROID
-	params.PrivateData = app_global;
-
-	jnienv = NULL;
-    JavaVM *jvm = app_global->activity->vm;
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-    jvm->AttachCurrentThread(&jnienv, &lJavaVMAttachArgs);
+	params.PrivateData = porting::app_global;
 #endif
 
 	device = createDeviceEx(params);
@@ -1528,11 +1535,13 @@ int main(int argc, char *argv[])
 	if(random_input)
 		input = new RandomInputHandler();
 	else {
+#ifdef HAVE_TOUCHSCREENGUI
 		if (g_settings->getBool("touchscreen")) {
 			touchscreengui = new TouchScreenGUI(device);
 			input = touchscreengui;
 		}
 		else
+#endif
 			input = new RealInputHandler(device, &receiver);
 	}
 
@@ -1946,10 +1955,34 @@ int main(int argc, char *argv[])
 
 
 #ifdef ANDROID
+// Prevent crash when soft-keyboard is closed
+// http://stackoverflow.com/questions/15913080/crash-when-closing-soft-keyboard-while-using-native-activity
+// problem appears to exist in Android 4.1 and 4.2 - solved in 4.3
+// TODO close the soft-keyboard on AKEYCODE_BACK
+
+static void process_input(struct android_app* app, struct android_poll_source* source) {
+	AInputEvent* event = NULL;
+	if (AInputQueue_getEvent(app->inputQueue, &event) >= 0) {
+		int type = AInputEvent_getType(event);
+		bool skip_predispatch
+			=  AInputEvent_getType(event)  == AINPUT_EVENT_TYPE_KEY
+			&& AKeyEvent_getKeyCode(event) == AKEYCODE_BACK;
+
+		if (!skip_predispatch && AInputQueue_preDispatchEvent(app->inputQueue, event))
+			return;
+
+		int32_t handled = 0;
+		if (app->onInputEvent != NULL)
+			handled = app->onInputEvent(app, event);
+		AInputQueue_finishEvent(app->inputQueue, event, handled);
+	}
+}
+
 void android_main(android_app *app) {
 	app_dummy();
-	app_global = app;
-	char *argv[] = {"freeminer"/*, "--worldname", "test", "--go", "--random-input"*/};
+	porting::app_global = app;
+	porting::app_global->inputPollSource.process = process_input;
+	char *argv[] = {"minetest"/*, "--worldname", "test", "--go", "--random-input"*/};
 	main(sizeof(argv) / sizeof(argv[0]), argv);
 }
 #endif

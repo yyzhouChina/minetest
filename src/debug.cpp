@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 
+#include "porting.h"
 #include "debug.h"
 #include "exceptions.h"
 #include "threads.h"
@@ -27,12 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <map>
 #include "jthread/jmutex.h"
 #include "jthread/jmutexautolock.h"
-
-#ifdef ANDROID
-#include <android/log.h>
-#define APPNAME "Freeminer"
-#endif
-
+#include "config.h"
 /*
 	Debug output
 */
@@ -61,7 +57,7 @@ void debugstreams_init(bool disable_stderr, const char *filename)
 
 	if(filename)
 		g_debugstreams[1] = fopen(filename, "a");
-		
+
 	if(g_debugstreams[1])
 	{
 		fprintf(g_debugstreams[1], "\n\n-------------\n");
@@ -95,13 +91,13 @@ public:
 			//TODO: Is this slow?
 			fflush(g_debugstreams[i]);
 		}
-		
+
 		return c;
 	}
 	std::streamsize xsputn(const char *s, std::streamsize n)
 	{
 #ifdef ANDROID
-		__android_log_print(ANDROID_LOG_VERBOSE, APPNAME, "%s", s);
+		__android_log_print(porting::ANDROID_LOG_VERBOSE, PROJECT_NAME, "%s", s);
 #endif
 		for(int i=0; i<DEBUGSTREAM_COUNT; i++)
 		{
@@ -115,7 +111,7 @@ public:
 
 		return n;
 	}
-	
+
 private:
 	bool m_disable_stderr;
 };
@@ -137,7 +133,7 @@ void assert_fail(const char *assertion, const char *file,
 			"%s:%d: %s: Assertion '%s' failed.\n",
 			(unsigned long)get_current_thread_id(),
 			file, line, function, assertion);
-	
+
 	debug_stacks_print();
 
 	if(g_debugstreams[1])
@@ -155,7 +151,7 @@ struct DebugStack
 	DebugStack(threadid_t id);
 	void print(FILE *file, bool everything);
 	void print(std::ostream &os, bool everything);
-	
+
 	threadid_t threadid;
 	char stack[DEBUG_STACK_SIZE][DEBUG_STACK_TEXT_SIZE];
 	int stack_i; // Points to the lowest empty position
@@ -289,10 +285,10 @@ DebugStacker::DebugStacker(const char *text)
 DebugStacker::~DebugStacker()
 {
 	JMutexAutoLock lock(g_debug_stacks_mutex);
-	
+
 	if(m_overflowed == true)
 		return;
-	
+
 	m_stack->stack_i--;
 
 	if(m_stack->stack_i == 0)

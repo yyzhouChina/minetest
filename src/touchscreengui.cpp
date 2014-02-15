@@ -119,6 +119,7 @@ void TouchScreenGUI::init() {
 TouchScreenGUI::~TouchScreenGUI() {}
 
 void TouchScreenGUI::OnEvent(const SEvent &event) {
+
 	if (event.EventType == EET_MULTI_TOUCH_EVENT) {
 		//leftclicked = false;
 		//leftreleased = false;
@@ -139,8 +140,8 @@ void TouchScreenGUI::OnEvent(const SEvent &event) {
 		}
 
 		bool main_pointer_still_here = false;
-
-		for (int i = 0; i < event.MultiTouchInput.PointerCount; ++i) {
+#if 0
+		for (int i = 0; i < event.MultiTouchInput.touchedCount(); ++i) {
 			s32 x = event.MultiTouchInput.X[i];
 			s32 y = event.MultiTouchInput.Y[i];
 			if (event.MultiTouchInput.ID[i] == m_down_pointer_id)
@@ -222,6 +223,7 @@ void TouchScreenGUI::OnEvent(const SEvent &event) {
 			m_down = false;
 			m_digging = false;
 		}
+#endif
 	}
 }
 
