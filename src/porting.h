@@ -270,6 +270,20 @@ inline u32 getTime(TimePrecision prec)
 	}
 	return 0;
 }
+
+#ifdef WIN32
+// not supported on windows platform
+#define setThreadName(a)
+#else
+
+#include <sys/prctl.h>
+
+inline void setThreadName(const char* name) {
+	prctl(PR_SET_NAME,name);
+}
+
+#endif
+
 #ifdef ANDROID
 void displayKeyboard(bool pShow, android_app* mApplication, JNIEnv* lJNIEnv);
 void setExternalStorageDir(JNIEnv* lJNIEnv);
