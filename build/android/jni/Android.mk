@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)/..
 
-LOCAL_ADDRESS_SANITIZER:=true
+#LOCAL_ADDRESS_SANITIZER:=true
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := Irrlicht
@@ -18,10 +18,14 @@ LOCAL_MODULE := Minetest
 
 LOCAL_CPP_FEATURES += exceptions
 
-LOCAL_CFLAGS := -D_IRR_ANDROID_PLATFORM_ -DANDROID -DHAVE_TOUCHSCREENGUI -pipe -fstrict-aliasing
+ifdef GPROF
+GPROF_DEF=-DGPROF
+endif
+
+LOCAL_CFLAGS := -D_IRR_ANDROID_PLATFORM_ -DANDROID -DHAVE_TOUCHSCREENGUI $(GPROF_DEF) -pipe -fstrict-aliasing
 
 ifndef NDEBUG
-LOCAL_CFLAGS += -g -D_DEBUG
+LOCAL_CFLAGS += -g -D_DEBUG -O0 -fno-omit-frame-pointer
 else
 LOCAL_CFLAGS += -fexpensive-optimizations -O3
 endif
@@ -240,8 +244,18 @@ LOCAL_SRC_FILES += jni/src/json/jsoncpp.cpp
 
 LOCAL_LDLIBS := -lEGL -llog -lGLESv1_CM -lGLESv2 -lz -landroid
 
-LOCAL_STATIC_LIBRARIES := Irrlicht LevelDB android_native_app_glue
+ifdef GPROF
+PROFILER_LIBS := android-ndk-profiler
+LOCAL_CFLAGS += -pg
+endif
+
+LOCAL_STATIC_LIBRARIES := Irrlicht LevelDB android_native_app_glue $(PROFILER_LIBS)
+
 
 include $(BUILD_SHARED_LIBRARY)
 
+# at the end of Android.mk
+ifdef GPROF
+$(call import-module,android-ndk-profiler)
+endif
 $(call import-module,android/native_app_glue)

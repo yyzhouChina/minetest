@@ -7,6 +7,10 @@ if [ -z "$ANDROID_NDK" ]; then
 	exit 1
 fi
 
+if [ -z "$NDK_MODULE_PATH" ]; then
+	echo "NDK_MODULE_PATH not set you wont be able to use profiler"
+fi
+
 if [ -z "$NDEBUG" ]; then
 	NDEBUG=1
 fi
@@ -67,7 +71,7 @@ ls -R | grep ":$" | sed -e 's/:$//' -e 's/\.//' -e 's/^\///' > "index.txt"
 
 echo ">> Building Minetest"
 cd $ROOT
-$ANDROID_NDK/ndk-build NDEBUG=$NDEBUG -j8 || exit 1
+$ANDROID_NDK/ndk-build NDK_MODULE_PATH=$NDK_MODULE_PATH NDEBUG=$NDEBUG -j8 || exit 1
 ant debug || exit 1
 
 echo "++ Success!"
