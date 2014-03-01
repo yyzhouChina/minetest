@@ -90,6 +90,12 @@ GUIFormSpecMenu::GUIFormSpecMenu(irr::IrrlichtDevice* dev,
 	current_keys_pending.key_enter = false;
 	current_keys_pending.key_escape = false;
 
+	m_doubleclickdetect[0].time = 0;
+	m_doubleclickdetect[1].time = 0;
+
+	m_doubleclickdetect[0].pos = v2s32(0,0);
+	m_doubleclickdetect[1].pos = v2s32(0,0);
+
 }
 
 GUIFormSpecMenu::~GUIFormSpecMenu()
@@ -104,23 +110,11 @@ GUIFormSpecMenu::~GUIFormSpecMenu()
 void GUIFormSpecMenu::removeChildren()
 {
 	const core::list<gui::IGUIElement*> &children = getChildren();
-	core::list<gui::IGUIElement*> children_copy;
-	for(core::list<gui::IGUIElement*>::ConstIterator
-			i = children.begin(); i != children.end(); i++)
-	{
-		children_copy.push_back(*i);
+
+	while(!children.empty()) {
+		(*children.getLast())->remove();
 	}
-	for(core::list<gui::IGUIElement*>::Iterator
-			i = children_copy.begin();
-			i != children_copy.end(); i++)
-	{
-		(*i)->remove();
-	}
-	/*{
-		gui::IGUIElement *e = getElementFromId(256);
-		if(e != NULL)
-			e->remove();
-	}*/
+
 
 	if(m_tooltip_element)
 	{
@@ -384,15 +378,14 @@ void GUIFormSpecMenu::parseCheckbox(parserData* data,std::string element) {
 
 		std::wstring wlabel = narrow_to_wide(label.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 				narrow_to_wide(name.c_str()),
-				L"",
+				wlabel, //Needed for displaying text on MSVC
 				wlabel,
 				258+m_fields.size()
 			);
 
 		spec.ftype = f_CheckBox;
-		spec.flabel = wlabel; //Needed for displaying text on MSVC
 		gui::IGUICheckBox* e = Environment->addCheckBox(fselected, rect, this,
 					spec.fid, spec.flabel.c_str());
 
@@ -506,7 +499,7 @@ void GUIFormSpecMenu::parseButton(parserData* data,std::string element,std::stri
 
 		std::wstring wlabel = narrow_to_wide(label.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			narrow_to_wide(name.c_str()),
 			wlabel,
 			L"",
@@ -516,14 +509,14 @@ void GUIFormSpecMenu::parseButton(parserData* data,std::string element,std::stri
 		if(type == "button_exit")
 			spec.is_exit = true;
 
+		m_fields.push_back(spec);
 		gui::IGUIButton* e = Environment->addButton(rect, this, spec.fid,
-				spec.flabel.c_str());
+				m_fields.back().flabel.c_str());
 
 		if (spec.fname == data->focused_fieldname) {
 			Environment->setFocus(e);
 		}
 
-		m_fields.push_back(spec);
 		return;
 	}
 	errorstream<< "Invalid button element(" << parts.size() << "): '" << element << "'"  << std::endl;
@@ -624,7 +617,7 @@ void GUIFormSpecMenu::parseTable(parserData* data,std::string element) {
 
 		std::wstring fname_w = narrow_to_wide(name.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			fname_w,
 			L"",
 			L"",
@@ -640,7 +633,8 @@ void GUIFormSpecMenu::parseTable(parserData* data,std::string element) {
 		//now really show table
 		GUITable *e = new GUITable(Environment, this, spec.fid, rect,
 				m_tsrc);
-		e->drop();  // IGUIElement maintains the remaining reference
+		// TODO sapier 20140301 not exactly sure about this
+		//e->drop();  // IGUIElement maintains the remaining reference
 
 		if (spec.fname == data->focused_fieldname) {
 			Environment->setFocus(e);
@@ -696,7 +690,7 @@ void GUIFormSpecMenu::parseTextList(parserData* data,std::string element) {
 
 		std::wstring fname_w = narrow_to_wide(name.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			fname_w,
 			L"",
 			L"",
@@ -712,7 +706,8 @@ void GUIFormSpecMenu::parseTextList(parserData* data,std::string element) {
 		//now really show list
 		GUITable *e = new GUITable(Environment, this, spec.fid, rect,
 				m_tsrc);
-		e->drop();  // IGUIElement maintains the remaining reference
+		// TODO sapier 20140301 not exactly sure about this
+		//e->drop();  // IGUIElement maintains the remaining reference
 
 		if (spec.fname == data->focused_fieldname) {
 			Environment->setFocus(e);
@@ -758,7 +753,7 @@ void GUIFormSpecMenu::parseDropDown(parserData* data,std::string element) {
 
 		std::wstring fname_w = narrow_to_wide(name.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			fname_w,
 			L"",
 			L"",
@@ -818,7 +813,7 @@ void GUIFormSpecMenu::parsePwdField(parserData* data,std::string element) {
 
 		std::wstring wlabel = narrow_to_wide(label.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			narrow_to_wide(name.c_str()),
 			wlabel,
 			L"",
@@ -893,7 +888,7 @@ void GUIFormSpecMenu::parseSimpleField(parserData* data,std::vector<std::string>
 
 	std::wstring wlabel = narrow_to_wide(label.c_str());
 
-	FieldSpec spec = FieldSpec(
+	FieldSpec spec(
 		narrow_to_wide(name.c_str()),
 		wlabel,
 		narrow_to_wide(default_val.c_str()),
@@ -908,7 +903,8 @@ void GUIFormSpecMenu::parseSimpleField(parserData* data,std::vector<std::string>
 	else
 	{
 		spec.send = true;
-		gui::IGUIEditBox *e = Environment->addEditBox(spec.fdefault.c_str(), rect, true, this, spec.fid);
+		gui::IGUIEditBox *e =
+			Environment->addEditBox(spec.fdefault.c_str(), rect, true, this, spec.fid);
 
 		if (spec.fname == data->focused_fieldname) {
 			Environment->setFocus(e);
@@ -979,7 +975,7 @@ void GUIFormSpecMenu::parseTextArea(parserData* data,std::vector<std::string>& p
 
 	std::wstring wlabel = narrow_to_wide(label.c_str());
 
-	FieldSpec spec = FieldSpec(
+	FieldSpec spec(
 		narrow_to_wide(name.c_str()),
 		wlabel,
 		narrow_to_wide(default_val.c_str()),
@@ -994,7 +990,8 @@ void GUIFormSpecMenu::parseTextArea(parserData* data,std::vector<std::string>& p
 	else
 	{
 		spec.send = true;
-		gui::IGUIEditBox *e = Environment->addEditBox(spec.fdefault.c_str(), rect, true, this, spec.fid);
+		gui::IGUIEditBox *e =
+			Environment->addEditBox(spec.fdefault.c_str(), rect, true, this, spec.fid);
 
 		if (spec.fname == data->focused_fieldname) {
 			Environment->setFocus(e);
@@ -1062,14 +1059,15 @@ void GUIFormSpecMenu::parseLabel(parserData* data,std::string element) {
 
 		std::wstring wlabel = narrow_to_wide(text.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			L"",
 			wlabel,
 			L"",
 			258+m_fields.size()
 		);
-		Environment->addStaticText(spec.flabel.c_str(), rect, false, true, this, spec.fid);
 		m_fields.push_back(spec);
+		Environment->addStaticText((--m_fields.end())->flabel.c_str(), rect, false, true, this, spec.fid);
+
 		return;
 	}
 	errorstream<< "Invalid label element(" << parts.size() << "): '" << element << "'"  << std::endl;
@@ -1100,16 +1098,17 @@ void GUIFormSpecMenu::parseVertLabel(parserData* data,std::string element) {
 			label += L"\n";
 		}
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			L"",
 			label,
 			L"",
 			258+m_fields.size()
 		);
-		gui::IGUIStaticText *t =
-				Environment->addStaticText(spec.flabel.c_str(), rect, false, true, this, spec.fid);
-		t->setTextAlignment(gui::EGUIA_CENTER, gui::EGUIA_CENTER);
 		m_fields.push_back(spec);
+		gui::IGUIStaticText *t =
+				Environment->addStaticText((--m_fields.end())->flabel.c_str(), rect, false, true, this, spec.fid);
+		t->setTextAlignment(gui::EGUIA_CENTER, gui::EGUIA_CENTER);
+
 		return;
 	}
 	errorstream<< "Invalid vertlabel element(" << parts.size() << "): '" << element << "'"  << std::endl;
@@ -1163,7 +1162,7 @@ void GUIFormSpecMenu::parseImageButton(parserData* data,std::string element,std:
 
 		std::wstring wlabel = narrow_to_wide(label.c_str());
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			narrow_to_wide(name.c_str()),
 			wlabel,
 			narrow_to_wide(image_name.c_str()),
@@ -1222,7 +1221,7 @@ void GUIFormSpecMenu::parseTabHeader(parserData* data,std::string element) {
 				show_border = false;
 		}
 
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			narrow_to_wide(name.c_str()),
 			L"",
 			L"",
@@ -1247,14 +1246,10 @@ void GUIFormSpecMenu::parseTabHeader(parserData* data,std::string element) {
 		}
 
 		e->setNotClipped(true);
+		m_fields.push_back(spec);
 
 		for (unsigned int i=0; i< buttons.size(); i++) {
-			wchar_t* wbutton = 0;
-
-			std::wstring wlabel = narrow_to_wide(buttons[i]); //Needed for displaying text on windows
-			wbutton = (wchar_t*) wlabel.c_str();
-
-			e->addTab(wbutton,-1);
+			e->addTab(narrow_to_wide(buttons[i]).c_str(),-1);
 		}
 
 		if ((tab_index >= 0) &&
@@ -1262,7 +1257,7 @@ void GUIFormSpecMenu::parseTabHeader(parserData* data,std::string element) {
 				(tab_index < (int) buttons.size()))
 			e->setActiveTab(tab_index);
 
-		m_fields.push_back(spec);
+
 		return;
 	}
 	errorstream<< "Invalid TabHeader element(" << parts.size() << "): '" << element << "'"  << std::endl;
@@ -1306,7 +1301,7 @@ void GUIFormSpecMenu::parseItemImageButton(parserData* data,std::string element)
 		std::string tooltip = item.getDefinition(idef).description;
 
 		label = unescape_string(label);
-		FieldSpec spec = FieldSpec(
+		FieldSpec spec(
 			narrow_to_wide(name.c_str()),
 			narrow_to_wide(label.c_str()),
 			narrow_to_wide(item_name.c_str()),
@@ -1328,6 +1323,7 @@ void GUIFormSpecMenu::parseItemImageButton(parserData* data,std::string element)
 		spec.rect=rect;
 		if (tooltip!="")
 			spec.tooltip=tooltip;
+
 		m_fields.push_back(spec);
 		return;
 	}
@@ -1579,6 +1575,11 @@ void GUIFormSpecMenu::regenerateGui(v2u32 screensize)
 	// Remove children
 	removeChildren();
 
+	for (u32 i = 0; i < m_tables.size(); ++i) {
+		GUITable *table = m_tables[i].second;
+		table->drop();
+	}
+
 	mydata.size= v2s32(100,100);
 	mydata.helptext_h = 15;
 	mydata.screensize = screensize;
@@ -1616,6 +1617,7 @@ void GUIFormSpecMenu::regenerateGui(v2u32 screensize)
 	m_clipbackground = false;
 	// Add tooltip
 	{
+		assert(m_tooltip_element == NULL);
 		// Note: parent != this so that the tooltip isn't clipped by the menu rectangle
 		m_tooltip_element = Environment->addStaticText(L"",core::rect<s32>(0,0,110,18));
 		m_tooltip_element->enableOverrideColor(true);
@@ -1840,12 +1842,6 @@ void GUIFormSpecMenu::drawMenu()
 			regenerateGui(m_screensize_old);
 		}
 	}
-#ifdef HAVE_TOUCHSCREENGUI
-	if (touchscreengui)
-		m_pointer = touchscreengui->getMousePos();
-	else
-#endif
-		m_pointer = m_device->getCursorControl()->getPosition();
 
 	updateSelectedItem();
 
@@ -1989,6 +1985,9 @@ void GUIFormSpecMenu::drawMenu()
 	*/
 	gui::IGUIElement::draw();
 
+/* TODO find way to show tooltips on touchscreen */
+#ifndef HAVE_TOUCHSCREENGUI
+	m_pointer = m_device->getCursorControl()->getPosition();
 	/*
 		Draw fields/buttons tooltips
 	*/
@@ -2013,6 +2012,7 @@ void GUIFormSpecMenu::drawMenu()
 			}
 		}
 	}
+#endif
 
 	/*
 		Draw dragged item stack
@@ -2165,40 +2165,45 @@ void GUIFormSpecMenu::acceptInput(bool quit=false)
 			current_keys_pending.key_escape = false;
 		}
 
-		for(u32 i=0; i<m_fields.size(); i++)
+		unsigned int i = 0;
+		for (std::vector<FieldSpec>::iterator iter = m_fields.begin();
+				iter != m_fields.end(); iter++)
 		{
-			const FieldSpec &s = m_fields[i];
-			if(s.send)
+			errorstream << "GUIFormSpecMenu::acceptInput Field: number="
+					<< i << " name=" << wide_to_narrow(iter->flabel) << std::endl;
+			i++;
+			if(iter->send)
 			{
-				if(s.ftype == f_Button)
+				std::string label = wide_to_narrow(iter->flabel);
+				std::string name  = wide_to_narrow(iter->fname);
+				if(iter->ftype == f_Button)
 				{
-					fields[wide_to_narrow(s.fname.c_str())] = wide_to_narrow(s.flabel.c_str());
+					fields[name] = wide_to_narrow(iter->flabel);
 				}
-				else if(s.ftype == f_Table) {
-					GUITable *table = getTable(s.fname);
+				else if(iter->ftype == f_Table) {
+					GUITable *table = getTable(iter->fname);
 					if (table) {
-						fields[wide_to_narrow(s.fname.c_str())]
-							= table->checkEvent();
+						fields[name] = table->checkEvent();
 					}
 				}
-				else if(s.ftype == f_DropDown) {
+				else if(iter->ftype == f_DropDown) {
 					// no dynamic cast possible due to some distributions shipped
 					// without rtti support in irrlicht
-					IGUIElement * element = getElementFromId(s.fid);
+					IGUIElement * element = getElementFromId(iter->fid);
 					gui::IGUIComboBox *e = NULL;
 					if ((element) && (element->getType() == gui::EGUIET_COMBO_BOX)) {
 						e = static_cast<gui::IGUIComboBox*>(element);
 					}
 					s32 selected = e->getSelected();
 					if (selected >= 0) {
-						fields[wide_to_narrow(s.fname.c_str())] =
+						fields[name] =
 							wide_to_narrow(e->getItem(selected));
 					}
 				}
-				else if (s.ftype == f_TabHeader) {
+				else if (iter->ftype == f_TabHeader) {
 					// no dynamic cast possible due to some distributions shipped
 					// without rtti support in irrlicht
-					IGUIElement * element = getElementFromId(s.fid);
+					IGUIElement * element = getElementFromId(iter->fid);
 					gui::IGUITabControl *e = NULL;
 					if ((element) && (element->getType() == gui::EGUIET_TAB_CONTROL)) {
 						e = static_cast<gui::IGUITabControl*>(element);
@@ -2207,13 +2212,13 @@ void GUIFormSpecMenu::acceptInput(bool quit=false)
 					if (e != 0) {
 						std::stringstream ss;
 						ss << (e->getActiveTab() +1);
-						fields[wide_to_narrow(s.fname.c_str())] = ss.str();
+						fields[name] = ss.str();
 					}
 				}
-				else if (s.ftype == f_CheckBox) {
+				else if (iter->ftype == f_CheckBox) {
 					// no dynamic cast possible due to some distributions shipped
 					// without rtti support in irrlicht
-					IGUIElement * element = getElementFromId(s.fid);
+					IGUIElement * element = getElementFromId(iter->fid);
 					gui::IGUICheckBox *e = NULL;
 					if ((element) && (element->getType() == gui::EGUIET_CHECK_BOX)) {
 						e = static_cast<gui::IGUICheckBox*>(element);
@@ -2221,17 +2226,17 @@ void GUIFormSpecMenu::acceptInput(bool quit=false)
 
 					if (e != 0) {
 						if (e->isChecked())
-							fields[wide_to_narrow(s.fname.c_str())] = "true";
+							fields[name] = "true";
 						else
-							fields[wide_to_narrow(s.fname.c_str())] = "false";
+							fields[name] = "false";
 					}
 				}
 				else
 				{
-					IGUIElement* e = getElementFromId(s.fid);
+					IGUIElement* e = getElementFromId(iter->fid);
 					if(e != NULL)
 					{
-						fields[wide_to_narrow(s.fname.c_str())] = wide_to_narrow(e->getText());
+						fields[name] = wide_to_narrow(e->getText());
 					}
 				}
 			}
@@ -2247,6 +2252,12 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 	if(event.EventType==EET_KEY_INPUT_EVENT)
 	{
 		KeyPress kp(event.KeyInput);
+#ifdef ANDROID
+		if (event.KeyInput.Key == KEY_RETURN) {
+			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
+		}
+#endif
+
 		if (kp == EscapeKey || kp == CancelKey || kp == getKeySetting("keymap_inventory")
 				|| event.KeyInput.Key==KEY_RETURN)
 		{
@@ -2268,9 +2279,24 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 		gui::IGUIElement *hovered =
 			Environment->getRootGUIElement()->getElementFromPoint(
 				core::position2d<s32>(x, y));
+
 		if (hovered && isMyChild(hovered)) {
 			hovered->OnEvent(event);
 			return true;
+		}
+	}
+
+	if (event.EventType == EET_MOUSE_INPUT_EVENT) {
+		s32 x = event.MouseInput.X;
+		s32 y = event.MouseInput.Y;
+		gui::IGUIElement *hovered =
+			Environment->getRootGUIElement()->getElementFromPoint(
+				core::position2d<s32>(x, y));
+
+		if (hovered != this) {
+			if (DoubleClickDetection(event)) {
+				return true;
+			}
 		}
 	}
 
@@ -2281,21 +2307,194 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 		gui::IGUIElement *hovered =
 			Environment->getRootGUIElement()->getElementFromPoint(
 				core::position2d<s32>(event.MouseInput.X, event.MouseInput.Y));
-		if (hovered->getType() == irr::gui::EGUIET_EDIT_BOX)
+		if (hovered->getType() == irr::gui::EGUIET_EDIT_BOX) {
 			porting::displayKeyboard(true, porting::app_global, porting::jnienv);
+			bool retval = hovered->OnEvent(event);
+
+			if (retval) {
+				Environment->setFocus(hovered);
+			}
+			return retval;
+		}
+		else {
+			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
+		}
+	}
+
+	if (event.EventType == EET_MULTI_TOUCH_EVENT) {
+		errorstream << "GUIFormSpecMenu::preprocessEvent Multitouch event"
+				<< " count=" << event.MultiTouchInput.touchedCount()
+				<< " event type=" << event.MultiTouchInput.Event
+				<< std::endl;
+
+		SEvent translated;
+		memset(&translated,0,sizeof(SEvent));
+		translated.EventType = EET_MOUSE_INPUT_EVENT;
+
+		gui::IGUIElement* root = Environment->getRootGUIElement();
+
+		if (!root) {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent unable to get root element"
+			<< std::endl;
+			return false;
+		}
+		gui::IGUIElement* hovered = root->getElementFromPoint(
+			core::position2d<s32>(
+					event.MultiTouchInput.X[0],
+					event.MultiTouchInput.Y[0]));
+
+		translated.MouseInput.X = event.MultiTouchInput.X[0];
+		translated.MouseInput.Y = event.MultiTouchInput.Y[0];
+		translated.MouseInput.Control = false;
+
+		bool dont_send_event = false;
+
+		if (event.MultiTouchInput.touchedCount() == 1) {
+			switch (event.MultiTouchInput.Event) {
+				case EMTIE_PRESSED_DOWN:
+					m_pointer = v2s32(event.MultiTouchInput.X[0],event.MultiTouchInput.Y[0]);
+					translated.MouseInput.Event = EMIE_LMOUSE_PRESSED_DOWN;
+					translated.MouseInput.ButtonStates = EMBSM_LEFT;
+					m_down_pos = m_pointer;
+					break;
+				case EMTIE_MOVED:
+					m_pointer = v2s32(event.MultiTouchInput.X[0],event.MultiTouchInput.Y[0]);
+					translated.MouseInput.Event = EMIE_MOUSE_MOVED;
+					translated.MouseInput.ButtonStates = EMBSM_LEFT;
+					break;
+				default:
+					dont_send_event = true;
+					//this is not supposed to happen
+					errorstream
+					<< "GUIFormSpecMenu::preprocessEvent unexpected usecase Event="
+					<< event.MultiTouchInput.Event << std::endl;
+			}
+		}
+		else if ( (event.MultiTouchInput.touchedCount() == 0) &&
+				(event.MultiTouchInput.Event == EMTIE_LEFT_UP) ) {
+			translated.MouseInput.Event = EMIE_LMOUSE_LEFT_UP;
+			translated.MouseInput.ButtonStates = 0;
+			hovered = root->getElementFromPoint(m_down_pos);
+			/* we don't have a valid pointer element use last known pointer pos */
+			translated.MouseInput.X = m_pointer.X;
+			translated.MouseInput.Y = m_pointer.Y;
+
+			/* reset down pos */
+			m_down_pos = v2s32(0,0);
+		}
+		else if ( (event.MultiTouchInput.touchedCount() == 2) &&
+				(event.MultiTouchInput.Event == EMTIE_PRESSED_DOWN) ) {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent rightclick" << std::endl;
+			hovered = root->getElementFromPoint(m_down_pos);
+
+			translated.MouseInput.Event = EMIE_RMOUSE_PRESSED_DOWN;
+			translated.MouseInput.ButtonStates = EMBSM_LEFT | EMBSM_RIGHT;
+			translated.MouseInput.X = m_pointer.X;
+			translated.MouseInput.Y = m_pointer.Y;
+
+			if (hovered) {
+				hovered->OnEvent(translated);
+			}
+
+			translated.MouseInput.Event = EMIE_RMOUSE_LEFT_UP;
+			translated.MouseInput.ButtonStates = EMBSM_LEFT;
+
+
+			if (hovered) {
+				hovered->OnEvent(translated);
+			}
+			dont_send_event = true;
+		}
+		else {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent to many multitouch events "
+			<< event.MultiTouchInput.touchedCount() << " ignoring them" << std::endl;
+		}
+
+		if (dont_send_event) {
+			return true;
+		}
+
+		/* check if translated event needs to be preprocessed again */
+		if (preprocessEvent(translated)) {
+			return true;
+		}
+		if (hovered) {
+			grab();
+			bool retval = hovered->OnEvent(translated);
+
+			if (event.MultiTouchInput.Event == EMTIE_LEFT_UP) {
+				/* reset pointer */
+				m_pointer = v2s32(0,0);
+				drop();
+			}
+			return retval;
+		}
 	}
 	#endif
 
 	return false;
 }
 
+bool GUIFormSpecMenu::DoubleClickDetection(const SEvent event) {
+	if (event.MouseInput.Event == EMIE_LMOUSE_PRESSED_DOWN) {
+		errorstream << "GUIFormSpecMenu::DoubleClickDetection handling down event" << std::endl;
+		m_doubleclickdetect[0].pos = m_doubleclickdetect[1].pos;
+		m_doubleclickdetect[0].time = m_doubleclickdetect[1].time;
+
+		m_doubleclickdetect[1].pos = m_pointer;
+		m_doubleclickdetect[1].time = getTimeMs();
+	}
+	else if (event.MouseInput.Event == EMIE_LMOUSE_LEFT_UP) {
+
+		errorstream << "GUIFormSpecMenu::DoubleClickDetection handle up event" << std::endl;
+
+		u32 delta = getTimeMs() - m_doubleclickdetect[0].time;
+		if (delta < 400) {
+
+			double distance = sqrt(
+				(m_doubleclickdetect[0].pos.X - m_doubleclickdetect[1].pos.X) *
+				(m_doubleclickdetect[0].pos.X - m_doubleclickdetect[1].pos.X) +
+				(m_doubleclickdetect[0].pos.Y - m_doubleclickdetect[1].pos.Y) *
+				(m_doubleclickdetect[0].pos.Y - m_doubleclickdetect[1].pos.Y));
+			errorstream << "GUIFormSpecMenu::DoubleClickDetection delta= " << delta
+					<< " distance=" << distance << std::endl;
+			if (distance < 30) {
+				errorstream
+					<< "GUIFormSpecMenu::DoubleClickDetection simulating escape"
+					<< std::endl;
+				SEvent* translated = new SEvent();
+				assert(translated != 0);
+				//translate doubleclick to escape
+				memset(translated,0,sizeof(SEvent));
+				translated->EventType = irr::EET_KEY_INPUT_EVENT;
+				translated->KeyInput.Key         = KEY_ESCAPE;
+				translated->KeyInput.Control     = false;
+				translated->KeyInput.Shift       = false;
+				translated->KeyInput.PressedDown = true;
+				translated->KeyInput.Char        = 0;
+				OnEvent(*translated);
+
+				// no need to send the key up event as we're already deleted
+				// and no one else did notice this event
+				delete translated;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 {
+	//errorstream << "GotEvent: " << event.EventType << std:: endl;
 	if(event.EventType==EET_KEY_INPUT_EVENT)
 	{
-		KeyPress kp(event.KeyInput);
-		if (event.KeyInput.PressedDown && (kp == EscapeKey ||
-			kp == getKeySetting("keymap_inventory") || kp == CancelKey))
+		KeyPress* kp = new KeyPress(event.KeyInput);
+		if (event.KeyInput.PressedDown && (*kp == EscapeKey ||
+			*kp == getKeySetting("keymap_inventory") || *kp == CancelKey))
 		{
 			if (m_allowclose) {
 				acceptInput(true);
@@ -2303,8 +2502,12 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			 } else {
 				m_text_dst->gotText(narrow_to_wide("MenuQuit"));
 			}
+			delete kp;
 			return true;
 		}
+		delete kp;
+		kp = NULL;
+
 		if (event.KeyInput.PressedDown &&
 			(event.KeyInput.Key==KEY_RETURN ||
 			 event.KeyInput.Key==KEY_UP ||
@@ -2337,7 +2540,6 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			}
 			return true;
 		}
-
 	}
 	if(event.EventType==EET_MOUSE_INPUT_EVENT
 			&& event.MouseInput.Event != EMIE_MOUSE_MOVED)
@@ -2345,7 +2547,6 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 		// Mouse event other than movement
 
 		// Get selected item and hovered/clicked item (s)
-
 		updateSelectedItem();
 		ItemSpec s = getItemAtPos(m_pointer);
 
@@ -2413,20 +2614,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			{ button = 1; updown = 1; }
 		else if(event.MouseInput.Event == EMIE_MMOUSE_LEFT_UP)
 			{ button = 2; updown = 1; }
-#ifdef HAVE_TOUCHSCREENGUI
-		if (touchscreengui) {
-			updown = 0;
-			if (touchscreengui->isSingleClick())
-				button = 0;
-			else if (touchscreengui->isDoubleClick())
-				button = 1;
-			else
-				// no click
-				updown = 2;
-			if (updown != 2)
-				touchscreengui->resetClicks();
-		}
-#endif
+
 		// Set this number to a positive value to generate a move action
 		// from m_selected_item to s.
 		u32 move_amount = 0;
@@ -2641,19 +2829,23 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 		if(event.GUIEvent.EventType==gui::EGET_TAB_CHANGED
 						&& isVisible())
 		{
+			unsigned int i = 0;
 			// find the element that was clicked
-			for(u32 i=0; i<m_fields.size(); i++)
-			{
-				FieldSpec &s = m_fields[i];
-				// if its a button, set the send field so
-				// lua knows which button was pressed
-				if ((s.ftype == f_TabHeader) && (s.fid == event.GUIEvent.Caller->getID()))
+			for (std::vector<FieldSpec>::iterator iter = m_fields.begin();
+					iter != m_fields.end(); iter ++) {
+
+				std::string fieldname = wide_to_narrow(iter->flabel);
+				errorstream << "GUIFormSpecMenu::OnEvent Field: number=" << i << " name=" << fieldname
+						<< " length=" << fieldname.length() << std::endl;
+
+				if ((iter->ftype == f_TabHeader) && (iter->fid == event.GUIEvent.Caller->getID()))
 				{
-					s.send = true;
+					iter->send = true;
 					acceptInput();
-					s.send = false;
+					iter->send = false;
 					return true;
 				}
+				i++;
 			}
 		}
 		if(event.GUIEvent.EventType==gui::EGET_ELEMENT_FOCUS_LOST
