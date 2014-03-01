@@ -30,33 +30,98 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../porting.h"
 
 #ifdef ANDROID
-int wctomb(char *s, wchar_t wc) { return wcrtomb(s,wc,NULL); }
-int mbtowc(wchar_t *pwc, const char *s, size_t n) { return mbrtowc(pwc, s, n, NULL); }
-#endif
+const wchar_t* wide_chars = L" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+
+int wctomb(char *s, wchar_t wc)
+{
+	for (unsigned int j = 0; j < (sizeof(wide_chars)/sizeof(wchar_t));j++) {
+		if (wc == wide_chars[j]) {
+			*s = (char) (j+32);
+			return 1;
+		}
+	}
+	return -1;
+}
+
+int mbtowc(wchar_t *pwc, const char *s, size_t n)
+{
+	std::wstring intermediate = narrow_to_wide(s);
+
+	if (intermediate.length() > 0) {
+		*pwc = intermediate[0];
+		return 1;
+	}
+	else {
+		return -1;
+	}
+}
+
+std::wstring narrow_to_wide(const std::string& mbs) {
+	size_t wcl = mbs.size();
+
+	std::wstring retval = L"";
+
+	for (unsigned int i = 0; i < wcl; i++) {
+		if (((unsigned char) mbs[i] >31) &&
+		 ((unsigned char) mbs[i] < 127)) {
+
+			retval += wide_chars[(unsigned char) mbs[i] -32];
+		}
+	}
+
+	return retval;
+}
+#else
 
 std::wstring narrow_to_wide(const std::string& mbs)
 {
 	size_t wcl = mbs.size();
-	Buffer<wchar_t> wcs(wcl+1);
+	Buffer<wchar_t> wcs(wcl+2);
+	memset(*wcs,0,wcs.getSize());
 	size_t l = mbstowcs(*wcs, mbs.c_str(), wcl);
 	if(l == (size_t)(-1))
 		return L"<invalid multibyte string>";
-	wcs[l] = 0;
+	wcs[MYMIN(l,wcl)] = 0;
 	return *wcs;
 }
 
+#endif
+
+#ifdef ANDROID
+std::string wide_to_narrow(const std::wstring& wcs) {
+	size_t mbl = wcs.size()*4;
+
+	std::string retval = "";
+	for (unsigned int i = 0; i < wcs.size(); i++) {
+		wchar_t char1 = (wchar_t) wcs[i];
+		for (unsigned int j = 0; j < wcslen(wide_chars);j++) {
+			wchar_t char2 = (wchar_t) wide_chars[j];
+
+			if (char1 == char2) {
+				char toadd = (j+32);
+				retval += toadd;
+				break;
+			}
+		}
+	}
+
+	return retval;
+}
+#else
 std::string wide_to_narrow(const std::wstring& wcs)
 {
 	size_t mbl = wcs.size()*4;
-	SharedBuffer<char> mbs(mbl+1);
+	SharedBuffer<char> mbs(mbl+2);
 	size_t l = wcstombs(*mbs, wcs.c_str(), mbl);
 	if(l == (size_t)(-1)) {
 		return "Character conversion failed!";
 	}
-	else
-		mbs[l] = 0;
+
+	mbs[MYMIN(l,mbl)] = 0;
 	return *mbs;
 }
+
+#endif
 
 // Get an sha-1 hash of the player's name combined with
 // the password entered. That's what the server uses as
@@ -202,7 +267,7 @@ char *mystrtok_r(char *s, const char *sep, char **lasts)
 		}
 		t++;
 	}
-	
+
 	*lasts = t;
 	return s;
 }
@@ -211,14 +276,14 @@ u64 read_seed(const char *str)
 {
 	char *endptr;
 	u64 num;
-	
+
 	if (str[0] == '0' && str[1] == 'x')
 		num = strtoull(str, &endptr, 16);
 	else
 		num = strtoull(str, &endptr, 10);
-		
+
 	if (*endptr)
 		num = murmur_hash_64_ua(str, (int)strlen(str), 0x1337);
-		
+
 	return num;
 }
