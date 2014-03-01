@@ -140,11 +140,9 @@ public:
 
 	void printbuf()
 	{
-//TODO replace whole function
-#ifndef _IRR_ANDROID_PLATFORM_
 		log_printline(m_lev, m_buf);
-#else
-		__android_log_print(porting::ANDROID_LOG_VERBOSE, PROJECT_NAME, "%s", m_buf.c_str());
+#ifdef _IRR_ANDROID_PLATFORM_
+		__android_log_print(porting::ANDROID_LOG_ERROR, PROJECT_NAME, "%s", m_buf.c_str());
 #endif
 	}
 

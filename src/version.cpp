@@ -29,8 +29,11 @@ const char *minetest_version_hash = CMAKE_VERSION_GITHASH;
 const char *minetest_build_info =
 		"VER=" CMAKE_VERSION_GITHASH " " CMAKE_BUILD_INFO;
 
+#elif defined(ANDROID)
+const char *minetest_version_simple = "0.4.10";
+const char *minetest_version_hash = "0.4.10.0";
+const char *minetest_build_info = "android jni";
 #else
-
 const char *minetest_version_simple = "unknown";
 const char *minetest_version_hash = "unknown";
 const char *minetest_build_info = "non-cmake";
