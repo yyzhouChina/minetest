@@ -32,7 +32,7 @@ if [ ! -d "irrlicht" ]; then
 	svn co http://svn.code.sf.net/p/irrlicht/code/branches/ogl-es/ irrlicht || exit 1
 	echo ">> Applying irrlicht.patch"
 	cd irrlicht
-	#patch -p0 < $ROOT/irrlicht.patch || exit 1
+	patch -p1 < $ROOT/irrlicht.patch || exit 1
 fi
 
 echo ">> Building LevelDB"
