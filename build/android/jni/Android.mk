@@ -91,7 +91,6 @@ LOCAL_SRC_FILES :=                                \
 		jni/src/guiKeyChangeMenu.cpp              \
 		jni/src/guiMessageMenu.cpp                \
 		jni/src/guiPasswordChange.cpp             \
-		jni/src/guiPauseMenu.cpp                  \
 		jni/src/guiTable.cpp                      \
 		jni/src/guiTextInputMenu.cpp              \
 		jni/src/guiVolumeChange.cpp               \

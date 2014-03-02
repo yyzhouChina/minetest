@@ -28,7 +28,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "IMeshCache.h"
 #include "client.h"
 #include "server.h"
-#include "guiPauseMenu.h"
 #include "guiPasswordChange.h"
 #include "guiVolumeChange.h"
 #include "guiFormSpecMenu.h"
@@ -145,12 +144,30 @@ struct TextDestPlayerInventory : public TextDest
 		m_client->sendInventoryFields(m_formname, fields);
 	}
 
-	void setFormName(std::string formname) {
+	Client *m_client;
+};
+
+struct LocalFormspecHandler : public TextDest
+{
+	LocalFormspecHandler();
+	LocalFormspecHandler(std::string formname) {
 		m_formname = formname;
 	}
 
-	Client *m_client;
-	std::string m_formname;
+	void gotText(std::map<std::string, std::string> fields)
+	{
+		if (fields.find("btn_sound") != fields.end()) {
+			g_gamecallback->changeVolume();
+		}
+
+		if (fields.find("btn_exit_menu") != fields.end()) {
+			g_gamecallback->disconnect();
+		}
+
+		if (fields.find("btn_exit_os") != fields.end()) {
+			g_gamecallback->exitToOS();
+		}
+	}
 };
 
 /* Respawn menu callback */
@@ -938,7 +955,55 @@ bool nodePlacementPrediction(Client &client,
 	return false;
 }
 
+/******************************************************************************/
+static void show_pause_menu(FormspecFormSource* current_formspec,
+								TextDest* current_textdest,
+								IWritableTextureSource* tsrc,
+								IrrlichtDevice * device) {
 
+	const char* control_text = gettext("Default Controls:\n"
+			"- WASD: move\n"
+			"- Space: jump/climb\n"
+			"- Shift: sneak/go down\n"
+			"- Q: drop item\n"
+			"- I: inventory\n"
+			"- Mouse: turn/look\n"
+			"- Mouse left: dig/punch\n"
+			"- Mouse right: place/use\n"
+			"- Mouse wheel: select item\n"
+			"- T: chat\n"
+			);
+
+	std::ostringstream os;
+	os<<"Minetest\n";
+	os<<minetest_build_info<<"\n";
+	os<<"path_user = "<<wrap_rows(porting::path_user, 20)<<"\n";
+
+	std::string formspec =
+		"size[11,5.5]"
+		"button_exit[4,1;3,0.5;btn_continue;"  + std::string(gettext("Continue"))     + "]"
+		"button[4,2;3,0.5;btn_sound;"     + std::string(gettext("Sound Volume")) + "]"
+		"button[4,3;3,0.5;btn_exit_menu;" + std::string(gettext("Exit to Menu")) + "]"
+		"button[4,4;3,0.5;btn_exit_os;"   + std::string(gettext("Exit to OS"))   + "]"
+		"textarea[7.5,0.25;3.75,6;;" + std::string(control_text) + ";]"
+		"textarea[0.4,0.25;3.5,6;;" + os.str() + ";]"
+		;
+
+	/* Create menu */
+	/* Note: FormspecFormSource and LocalFormspecHandler
+	 * are deleted by guiFormSpecMenu                     */
+	current_formspec = new FormspecFormSource(formspec,&current_formspec);
+	current_textdest = new LocalFormspecHandler("MT_PAUSE_MENU");
+	GUIFormSpecMenu *menu =
+			new GUIFormSpecMenu(device, guiroot, -1,
+					&g_menumgr,
+					NULL, NULL, tsrc);
+	menu->setFormSource(current_formspec);
+	menu->setTextDest(current_textdest);
+	menu->drop();
+}
+
+/******************************************************************************/
 void the_game(
 	bool &kill,
 	bool random_input,
@@ -957,7 +1022,7 @@ void the_game(
 )
 {
 	FormspecFormSource* current_formspec = 0;
-	TextDestPlayerInventory* current_textdest = 0;
+	TextDest* current_textdest = 0;
 	video::IVideoDriver* driver = device->getVideoDriver();
 	scene::ISceneManager* smgr = device->getSceneManager();
 
@@ -1827,17 +1892,7 @@ void the_game(
 		}
 		else if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey))
 		{
-			infostream<<"the_game: "
-					<<"Launching pause menu"<<std::endl;
-			// It will delete itself by itself
-			(new GUIPauseMenu(guienv, guiroot, -1, g_gamecallback,
-					&g_menumgr, simple_singleplayer_mode))->drop();
-
-			// Move mouse cursor on top of the disconnect button
-			if(simple_singleplayer_mode)
-				input->setMousePos(displaycenter.X, displaycenter.Y+0);
-			else
-				input->setMousePos(displaycenter.X, displaycenter.Y+25);
+			show_pause_menu(current_formspec, current_textdest, tsrc, device);
 #if defined(ANDROID) && defined(GPROF)
 			// TODO move this to app shutdown once shutdown is working
 			/* in the onPause or shutdown code */
