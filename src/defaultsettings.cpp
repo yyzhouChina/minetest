@@ -127,7 +127,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("anisotropic_filter", "false");
 	settings->setDefault("bilinear_filter", "false");
 	settings->setDefault("trilinear_filter", "false");
-	settings->setDefault("preload_item_visuals", "true");
+	settings->setDefault("preload_item_visuals", "false");
 	settings->setDefault("enable_bumpmapping", "false");
 	settings->setDefault("enable_parallax_occlusion", "false");
 	settings->setDefault("parallax_occlusion_scale", "0.08");
@@ -272,12 +272,6 @@ void set_default_settings(Settings *settings)
 
 	settings->setDefault("language", "");
 
-#ifdef HAVE_TOUCHSCREENGUI
-	settings->setDefault("touchscreen", "true");
-#else
-	settings->setDefault("touchscreen", "false");
-#endif
-
 #ifdef ANDROID
 	settings->setDefault("screenW", "0");
 	settings->setDefault("screenH", "0");
@@ -285,6 +279,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("fullscreen", "true");
 	settings->setDefault("enable_particles", "false");
 	settings->setDefault("video_driver", "ogles1");
+	settings->setDefault("main_menu_script","/sdcard/Minetest/builtin/mainmenu_simple.lua");
 #endif
 }
 
