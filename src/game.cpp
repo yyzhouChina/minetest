@@ -71,6 +71,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/directiontables.h"
 #include "util/pointedthing.h"
 
+#if defined(ANDROID) && defined(GPROF)
+#include "prof.h"
+#endif
+
 #ifdef HAVE_TOUCHSCREENGUI
 #include "touchscreengui.h"
 TouchScreenGUI *touchscreengui;
@@ -1434,7 +1438,7 @@ void the_game(
 
 #ifdef HAVE_TOUCHSCREENGUI
 	if (touchscreengui)
-		touchscreengui->init();
+		touchscreengui->init(tsrc);
 #endif
 	/*
 		Some statistics are collected in these
@@ -1476,7 +1480,8 @@ void the_game(
 	bool update_wielded_item_trigger = true;
 
 	bool show_hud = true;
-	bool show_chat = true;
+	//TODO push chat to back
+	bool show_chat = false;
 	bool force_fog_off = false;
 	f32 fog_range = 100*BS;
 	bool disable_camera_update = false;
@@ -1567,6 +1572,7 @@ void the_game(
 			if(busytime_u32 < frametime_min)
 			{
 				u32 sleeptime = frametime_min - busytime_u32;
+				errorstream << "Frame limiter, sleeping for: " << sleeptime << "ms" << std::endl;
 				device->sleep(sleeptime);
 				g_profiler->graphAdd("mainloop_sleep", (float)sleeptime/1000.0f);
 			}
@@ -1774,7 +1780,8 @@ void the_game(
 		// Input handler step() (used by the random input generator)
 		input->step(dtime);
 #ifdef HAVE_TOUCHSCREENGUI
-		touchscreengui->step(dtime);
+		if (touchscreengui)
+			touchscreengui->step(dtime);
 #endif
 
 		// Increase timer for doubleclick of "jump"
@@ -1796,7 +1803,7 @@ void the_game(
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_inventory")))
 		{
-			infostream<<"the_game: "
+			errorstream<<"the_game: "
 					<<"Launching inventory"<<std::endl;
 
 			GUIFormSpecMenu *menu =
@@ -1831,6 +1838,11 @@ void the_game(
 				input->setMousePos(displaycenter.X, displaycenter.Y+0);
 			else
 				input->setMousePos(displaycenter.X, displaycenter.Y+25);
+#if defined(ANDROID) && defined(GPROF)
+			// TODO move this to app shutdown once shutdown is working
+			/* in the onPause or shutdown code */
+			moncleanup();
+#endif
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_chat")))
 		{
@@ -2119,10 +2131,6 @@ void the_game(
 				}
 			}
 		}
-#ifdef HAVE_TOUCHSCREENGUI
-		if (touchscreengui->hasPlayerItemChanged())
-			new_playeritem = touchscreengui->getPlayerItem();
-#endif
 
 		// Viewing range selection
 		if(input->wasKeyDown(getKeySetting("keymap_rangeselect")))
@@ -2177,9 +2185,10 @@ void the_game(
 			else{
 #ifdef HAVE_TOUCHSCREENGUI
 				if (touchscreengui) {
-					camera_yaw = touchscreengui->getYaw();
+					camera_yaw   = touchscreengui->getYaw();
 					camera_pitch = touchscreengui->getPitch();
-				} else
+				}
+				else
 #endif
 				{
 					s32 dx = input->getMousePos().X - displaycenter.X;
@@ -2674,7 +2683,7 @@ void the_game(
 				}
 				else
 				{
-					infostream<<"Pointing away from node"
+					verbosestream<<"Pointing away from node"
 						<<" (stopped digging)"<<std::endl;
 					digging = false;
 				}
@@ -2734,7 +2743,7 @@ void the_game(
 			{
 				if(!digging)
 				{
-					infostream<<"Started digging"<<std::endl;
+					verbosestream<<"Started digging"<<std::endl;
 					client.interact(0, pointed);
 					digging = true;
 					ldown_for_dig = true;
@@ -2811,7 +2820,7 @@ void the_game(
 				}
 				else
 				{
-					infostream<<"Digging completed"<<std::endl;
+					verbosestream<<"Digging completed"<<std::endl;
 					client.interact(2, pointed);
 					client.setCrack(-1, v3s16(0,0,0));
 					MapNode wasnode = map.getNode(nodepos);
@@ -3105,9 +3114,6 @@ void the_game(
 		/*
 			Update gui stuff (0ms)
 		*/
-
-		//TimeTaker guiupdatetimer("Gui updating");
-
 		if(show_debug)
 		{
 			static float drawtime_avg = 0;
@@ -3598,6 +3604,7 @@ void the_game(
 	delete itemdef;
 #ifdef HAVE_TOUCHSCREENGUI
 	delete touchscreengui;
+	touchscreengui = NULL;
 #endif
 	//extended resource accounting
 	infostream << "Irrlicht resources after cleanup:" << std::endl;

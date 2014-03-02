@@ -24,83 +24,139 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include <IEventReceiver.h>
 
 #include <vector>
+#include <map>
 
 #include "game.h"
+#include "tile.h"
 
 using namespace irr;
 using namespace irr::core;
 using namespace irr::gui;
 
+typedef enum {
+	forward_id = 0,
+	backward_id,
+	left_id,
+	right_id,
+	jump_id,
+	inventory_id,
+	chat_id,
+	after_last_element_id
+} touch_gui_button_id;
 
-class TouchScreenGUI : public InputHandler {
+#define MIN_DIG_TIME_MS 500
+
+extern const char** keynames;
+extern const char** eventnames;
+extern const char** mouseeventnames;
+extern const char** multitoucheventnames;
+extern const char** touchgui_button_imagenames;
+
+class TouchScreenGUI {
 public:
-	TouchScreenGUI(IrrlichtDevice *device);
+	TouchScreenGUI(IrrlichtDevice *device, IEventReceiver* receiver);
 	~TouchScreenGUI();
-	void init();
-	void OnEvent(const SEvent &event);
+
+	void translateEvent(const SEvent &event);
+
+	void init(ISimpleTextureSource* tsrc);
+
 	double getYaw() { return m_camera_yaw; }
 	double getPitch() { return m_camera_pitch; }
 	line3d<f32> getShootline() { return m_shootline; }
 
-	bool isKeyDown(const KeyPress &keyCode);
-	bool wasKeyDown(const KeyPress &keyCode);
-	v2s32 getMousePos() { return m_down_to; }
-	void setMousePos(s32 x, s32 y) {}
-	bool getLeftState();
-	bool getRightState() { return m_rightclick; }
-	bool getLeftClicked() { return false; }
-	bool getRightClicked() { return m_rightclick; }
-	void resetLeftClicked() {}
-	void resetRightClicked() { m_rightclick = false; }
-	bool getLeftReleased() { return false; }
-	bool getRightReleased() { return m_rightclick; }
-	void resetLeftReleased() {}
-	void resetRightReleased() { m_rightclick = false; }
-	s32 getMouseWheel() { return 0; }
 	void step(float dtime);
 	void resetHud();
 	void registerHudItem(int index, const rect<s32> &rect);
-	bool hasPlayerItemChanged() { return m_player_item_changed; }
-	u16 getPlayerItem();
 	s32 getHotbarImageSize();
 	void Toggle(bool visible);
+
 	void Hide();
 	void Show();
 
-	bool isSingleClick();
-	bool isDoubleClick();
-	void resetClicks();
 private:
-	IrrlichtDevice *m_device;
-	IGUIEnvironment *m_guienv;
-	IGUIButton *m_button;
-	rect<s32> m_control_pad_rect;
-	double m_camera_yaw;
-	double m_camera_pitch;
-	line3d<f32> m_shootline;
-	bool m_down;
-	s32 m_down_pointer_id;
-	u32 m_down_since;
-	v2s32 m_down_from; // first known position
-	v2s32 m_down_to; // last known position
-
-	bool m_digging;
-	bool m_rightclick;
-
-	KeyList keyIsDown;
-	KeyList keyWasDown;
-
+	IrrlichtDevice*         m_device;
+	IGUIEnvironment*        m_guienv;
+	IEventReceiver*         m_receiver;
+	ISimpleTextureSource*   m_texturesource;
+	v2u32                   m_screensize;
 	std::vector<rect<s32> > m_hud_rects;
+	std::map<int,irr::EKEY_CODE> m_hud_ids;
+	u32                     m_hud_start_y;
+	bool                    m_visible; // is the gui visible
 
-	bool m_player_item_changed;
-	u16 m_player_item;
+	/* value in degree */
+	double                  m_camera_yaw;
+	double                  m_camera_pitch;
 
-	v2u32 m_screensize;
+	line3d<f32>             m_shootline;
 
-	u32 m_hud_start_y;
-	bool m_visible; // is the gui visible
+	rect<s32>               m_control_pad_rect;
 
-	bool m_double_click;
-	int m_previous_click_time;
+	int                     m_move_id;
+	bool                    m_move_has_really_moved;
+	s32                     m_move_downtime;
+	bool                    m_move_sent_as_mouse_event;
+	v2s32                   m_move_downlocation;
+
+	struct button_info {
+		float            repeatcounter;
+		irr::EKEY_CODE   keycode;
+		std::vector<int> ids;
+		IGUIButton*      guibutton;
+		bool             immediate_release;
+	};
+
+	button_info m_buttons[after_last_element_id];
+
+	/* gui button detection */
+	touch_gui_button_id getButtonID(s32 x, s32 y);
+
+	/* gui button by eventID */
+	touch_gui_button_id getButtonID(int eventID);
+
+	/* check if a button has changed */
+	void handleChangedButton(const SEvent &event);
+
+	/* find the changed index */
+	int findChangedIdx(const SEvent &event);
+
+	/* detect if this idx has moved */
+	bool isChangedIDX(const SEvent &event, int idx);
+
+	/* scan event for a vanished pointer id */
+	int findVanishedID(const SEvent &event);
+
+	/* load texture */
+	void LoadButtonTexture(button_info* btn, const char* path);
+
+	struct id_status{
+		int id;
+		int X;
+		int Y;
+	};
+
+	std::vector<id_status> m_known_ids;
+
+	/* handle a button event */
+	void ButtonEvent(touch_gui_button_id bID, int eventID, bool action);
+
+	/* handle pressed hud buttons */
+	bool isHUDButton(const SEvent &event, int eventID);
+
+	/* handle released hud buttons */
+	bool isReleaseHUDButton(int eventID);
+
+
+	/* handle double taps */
+	bool doubleTapDetection();
+
+	/* doubleclick detection variables */
+	struct key_event {
+		unsigned int down_time;
+		s32 x;
+		s32 y;
+	};
+	key_event m_key_events[2];
 };
 #endif
