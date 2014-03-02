@@ -282,6 +282,15 @@ inline void setThreadName(const char* name) {
 	prctl(PR_SET_NAME,name);
 }
 
+inline u32 getDeltaMs(u32 old_time_ms,u32 new_time_ms) {
+	if (new_time_ms >= old_time_ms) {
+		return (new_time_ms - old_time_ms);
+	}
+	else {
+		return ((0xFFFFFFFF - old_time_ms) + new_time_ms);
+	}
+}
+
 #endif
 
 #ifdef ANDROID

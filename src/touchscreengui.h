@@ -127,8 +127,12 @@ private:
 	/* scan event for a vanished pointer id */
 	int findVanishedID(const SEvent &event);
 
+	/* initialize a button */
+	void initButton(touch_gui_button_id id, rect<s32> button_rect,
+			std::wstring caption, bool immediate_release );
+
 	/* load texture */
-	void LoadButtonTexture(button_info* btn, const char* path);
+	void loadButtonTexture(button_info* btn, const char* path);
 
 	struct id_status{
 		int id;
