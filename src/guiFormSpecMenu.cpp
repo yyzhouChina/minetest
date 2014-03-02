@@ -2135,14 +2135,20 @@ ItemStack GUIFormSpecMenu::verifySelectedItem()
 	return ItemStack();
 }
 
-void GUIFormSpecMenu::acceptInput(bool quit=false)
+void GUIFormSpecMenu::acceptInput(FormspecQuitMode quitmode=quit_mode_no)
 {
 	if(m_text_dst)
 	{
 		std::map<std::string, std::string> fields;
 
-		if (quit) {
+		if (quitmode == quit_mode_accept) {
 			fields["quit"] = "true";
+		}
+
+		if (quitmode == quit_mode_cancel) {
+			fields["quit"] = "true";
+			m_text_dst->gotText(fields);
+			return;
 		}
 
 		if (current_keys_pending.key_down) {
@@ -2496,10 +2502,14 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 		if (event.KeyInput.PressedDown && (*kp == EscapeKey ||
 			*kp == getKeySetting("keymap_inventory") || *kp == CancelKey))
 		{
-			if (m_allowclose) {
-				acceptInput(true);
+			if ((m_allowclose) && (*kp == CancelKey)){
+				acceptInput(quit_mode_cancel);
 				quitMenu();
-			 } else {
+			}
+			else if (m_allowclose) {
+				acceptInput(quit_mode_accept);
+				quitMenu();
+			} else {
 				m_text_dst->gotText(narrow_to_wide("MenuQuit"));
 			}
 			delete kp;
@@ -2532,7 +2542,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 					break;
 			}
 			if (current_keys_pending.key_enter && m_allowclose) {
-				acceptInput(true);
+				acceptInput(quit_mode_accept);
 				quitMenu();
 			}
 			else {
@@ -2866,7 +2876,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 
 			if (btn_id == 257) {
 				if (m_allowclose) {
-					acceptInput(true);
+					acceptInput(quit_mode_accept);
 					quitMenu();
 				} else {
 					acceptInput();
@@ -2889,7 +2899,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 					acceptInput();
 					if(s.is_exit){
 						if (m_allowclose) {
-							acceptInput(true);
+							acceptInput(quit_mode_accept);
 							quitMenu();
 						} else {
 							m_text_dst->gotText(narrow_to_wide("ExitButton"));
@@ -2908,7 +2918,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 			{
 
 				if (m_allowclose) {
-					acceptInput(true);
+					acceptInput(quit_mode_accept);
 					quitMenu();
 				}
 				else {

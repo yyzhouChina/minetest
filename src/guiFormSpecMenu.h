@@ -42,6 +42,12 @@ typedef enum {
 	f_Unknown
 } FormspecFieldType;
 
+typedef enum {
+	quit_mode_no,
+	quit_mode_accept,
+	quit_mode_cancel
+} FormspecQuitMode;
+
 struct TextDest
 {
 	virtual ~TextDest() {};
@@ -232,7 +238,7 @@ public:
 	void updateSelectedItem();
 	ItemStack verifySelectedItem();
 
-	void acceptInput(bool quit);
+	void acceptInput(FormspecQuitMode quitmode);
 	bool preprocessEvent(const SEvent& event);
 	bool OnEvent(const SEvent& event);
 

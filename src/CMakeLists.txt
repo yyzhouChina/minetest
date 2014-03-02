@@ -427,7 +427,6 @@ set(minetest_SRCS
 	chat.cpp
 	hud.cpp
 	guiKeyChangeMenu.cpp
-	guiMessageMenu.cpp
 	guiTextInputMenu.cpp
 	guiFormSpecMenu.cpp
 	guiTable.cpp

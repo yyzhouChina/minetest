@@ -83,24 +83,6 @@ TouchScreenGUI *touchscreengui;
 	Text input system
 */
 
-struct TextDestChat : public TextDest
-{
-	TextDestChat(Client *client)
-	{
-		m_client = client;
-	}
-	void gotText(std::wstring text)
-	{
-		m_client->typeChatMessage(text);
-	}
-	void gotText(std::map<std::string, std::string> fields)
-	{
-		m_client->typeChatMessage(narrow_to_wide(fields["text"]));
-	}
-
-	Client *m_client;
-};
-
 struct TextDestNodeMetadata : public TextDest
 {
 	TextDestNodeMetadata(v3s16 p, Client *client)
@@ -154,20 +136,61 @@ struct LocalFormspecHandler : public TextDest
 		m_formname = formname;
 	}
 
+	LocalFormspecHandler(std::string formname,Client *client) {
+		m_formname = formname;
+		m_client = client;
+	}
+
+	void gotText(std::string message) {
+		errorstream << "LocalFormspecHandler::gotText old style message received" << std::endl;
+	}
+
 	void gotText(std::map<std::string, std::string> fields)
 	{
-		if (fields.find("btn_sound") != fields.end()) {
-			g_gamecallback->changeVolume();
+		if (m_formname == "MT_PAUSE_MENU") {
+			if (fields.find("btn_sound") != fields.end()) {
+				g_gamecallback->changeVolume();
+				return;
+			}
+
+			if (fields.find("btn_exit_menu") != fields.end()) {
+				g_gamecallback->disconnect();
+				return;
+			}
+
+			if (fields.find("btn_exit_os") != fields.end()) {
+				g_gamecallback->exitToOS();
+				return;
+			}
+
+			if (fields.find("quit") != fields.end()) {
+				return;
+			}
+		}
+		if (m_formname == "MT_CHAT_MENU") {
+			if (((fields.find("btn_send") != fields.end()) ||
+					(fields.find("quit") != fields.end())) &&
+					fields.find("f_text") != fields.end()){
+				if (m_client != 0) {
+					m_client->typeChatMessage(narrow_to_wide(fields["f_text"]));
+				}
+				else {
+					errorstream << "LocalFormspecHandler::gotText received chat message but m_client is NULL" << std::endl;
+				}
+				return;
+			}
 		}
 
-		if (fields.find("btn_exit_menu") != fields.end()) {
-			g_gamecallback->disconnect();
-		}
-
-		if (fields.find("btn_exit_os") != fields.end()) {
-			g_gamecallback->exitToOS();
+		errorstream << "LocalFormspecHandler::gotText unhandled >" << m_formname << "< event" << std::endl;
+		int i = 0;
+		for (std::map<std::string,std::string>::iterator iter = fields.begin();
+				iter != fields.end(); iter++) {
+			errorstream << "\t"<< i << ": " << iter->first << "=" << iter->second << std::endl;
+			i++;
 		}
 	}
+
+	Client *m_client;
 };
 
 /* Respawn menu callback */
@@ -955,6 +978,32 @@ bool nodePlacementPrediction(Client &client,
 	return false;
 }
 
+static void show_chat_menu(FormspecFormSource* current_formspec,
+								TextDest* current_textdest,
+								IWritableTextureSource* tsrc,
+								IrrlichtDevice * device,
+								Client* client,
+								std::string text) {
+	std::string formspec =
+		"size[11,5.5]"
+		"field[3,2.35;6,0.5;f_text;;" + text + "]"
+		"button_exit[4,3;3,0.5;btn_send;"  + std::string(gettext("Proceed"))     + "]"
+		;
+
+	/* Create menu */
+	/* Note: FormspecFormSource and LocalFormspecHandler
+	 * are deleted by guiFormSpecMenu                     */
+	current_formspec = new FormspecFormSource(formspec,&current_formspec);
+	current_textdest = new LocalFormspecHandler("MT_CHAT_MENU",client);
+	GUIFormSpecMenu *menu =
+			new GUIFormSpecMenu(device, guiroot, -1,
+					&g_menumgr,
+					NULL, NULL, tsrc);
+	menu->setFormSource(current_formspec);
+	menu->setTextDest(current_textdest);
+	menu->drop();
+}
+
 /******************************************************************************/
 static void show_pause_menu(FormspecFormSource* current_formspec,
 								TextDest* current_textdest,
@@ -1637,7 +1686,6 @@ void the_game(
 			if(busytime_u32 < frametime_min)
 			{
 				u32 sleeptime = frametime_min - busytime_u32;
-				errorstream << "Frame limiter, sleeping for: " << sleeptime << "ms" << std::endl;
 				device->sleep(sleeptime);
 				g_profiler->graphAdd("mainloop_sleep", (float)sleeptime/1000.0f);
 			}
@@ -1901,19 +1949,11 @@ void the_game(
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_chat")))
 		{
-			TextDest *dest = new TextDestChat(&client);
-
-			(new GUITextInputMenu(guienv, guiroot, -1,
-					&g_menumgr, dest,
-					L""))->drop();
+			show_chat_menu(current_formspec, current_textdest, tsrc, device, &client,"");
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_cmd")))
 		{
-			TextDest *dest = new TextDestChat(&client);
-
-			(new GUITextInputMenu(guienv, guiroot, -1,
-					&g_menumgr, dest,
-					L"/"))->drop();
+			show_chat_menu(current_formspec, current_textdest, tsrc, device, &client,"/");
 		}
 		else if(input->wasKeyDown(getKeySetting("keymap_console")))
 		{
