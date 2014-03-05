@@ -313,7 +313,7 @@ PointedThing getPointedThing(Client *client, v3f player_position,
 
 	// That didn't work, try to find a pointed at node
 
-	
+
 	v3s16 pos_i = floatToInt(player_position, BS);
 
 	/*infostream<<"pos_i=("<<pos_i.X<<","<<pos_i.Y<<","<<pos_i.Z<<")"
@@ -326,7 +326,7 @@ PointedThing getPointedThing(Client *client, v3f player_position,
 	s16 yend = pos_i.Y + 1 + (camera_direction.Y>0 ? a : 1);
 	s16 zend = pos_i.Z + (camera_direction.Z>0 ? a : 1);
 	s16 xend = pos_i.X + (camera_direction.X>0 ? a : 1);
-	
+
 	// Prevent signed number overflow
 	if(yend==32767)
 		yend=32766;
@@ -461,9 +461,9 @@ void draw_load_screen(const std::wstring &text, IrrlichtDevice* device,
 	}
 	guienv->drawAll();
 	driver->endScene();
-	
+
 	guitext->remove();
-	
+
 	//return guitext;
 }
 
@@ -530,7 +530,7 @@ public:
 		while(m_log.size() > m_log_max_size)
 			m_log.erase(m_log.begin());
 	}
-	
+
 	void draw(s32 x_left, s32 y_bottom, video::IVideoDriver *driver,
 			gui::IGUIFont* font) const
 	{
@@ -579,7 +579,7 @@ public:
 		s32 graphh = 50;
 		s32 textx = x_left + m_log_max_size + 15;
 		s32 textx2 = textx + 200 - 15;
-		
+
 		// Draw background
 		/*{
 			u32 num_graphs = m_meta.size();
@@ -588,7 +588,7 @@ public:
 			video::SColor bgcolor(120,0,0,0);
 			driver->draw2DRectangle(bgcolor, rect, NULL);
 		}*/
-		
+
 		s32 meta_i = 0;
 		for(std::map<std::string, Meta>::const_iterator i = m_meta.begin();
 				i != m_meta.end(); i++){
@@ -674,7 +674,7 @@ class NodeDugEvent: public MtEvent
 public:
 	v3s16 p;
 	MapNode n;
-	
+
 	NodeDugEvent(v3s16 p, MapNode n):
 		p(p),
 		n(n)
@@ -847,7 +847,7 @@ public:
 		u32 daynight_ratio = m_client->getEnv().getDayNightRatio();
 		float daynight_ratio_f = (float)daynight_ratio / 1000.0;
 		services->setPixelShaderConstant("dayNightRatio", &daynight_ratio_f, 1);
-		
+
 		u32 animation_timer = porting::getTimeMs() % 100000;
 		float animation_timer_f = (float)animation_timer / 100000.0;
 		services->setPixelShaderConstant("animationTimer", &animation_timer_f, 1);
@@ -1051,13 +1051,13 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	TextDest* current_textdest = 0;
 	video::IVideoDriver* driver = device->getVideoDriver();
 	scene::ISceneManager* smgr = device->getSceneManager();
-	
+
 	// Calculate text height using the font
 	u32 text_height = font->getDimension(L"Random test string").Height;
 
 	v2u32 last_screensize(0,0);
 	v2u32 screensize = driver->getScreenSize();
-	
+
 	/*
 		Draw "Loading" screen
 	*/
@@ -1067,19 +1067,19 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		draw_load_screen(text, device, font,0,0);
 		delete[] text;
 	}
-	
+
 	// Create texture source
 	IWritableTextureSource *tsrc = createTextureSource(device);
-	
+
 	// Create shader source
 	IWritableShaderSource *shsrc = createShaderSource(device);
-	
+
 	// These will be filled by data received from the server
 	// Create item definition manager
 	IWritableItemDefManager *itemdef = createItemDefManager();
 	// Create node definition manager
 	IWritableNodeDefManager *nodedef = createNodeDefManager();
-	
+
 	// Sound fetcher (useful when testing)
 	GameOnDemandSoundFetcher soundfetcher;
 
@@ -1111,7 +1111,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	// Sound maker
 	SoundMaker soundmaker(sound, nodedef);
 	soundmaker.registerReceiver(&eventmgr);
-	
+
 	// Add chat log output for errors to be shown in chat
 	LogOutputBuffer chat_log_error_buf(LMT_ERROR);
 
@@ -1153,7 +1153,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	}
 
 	do{ // Client scope (breakable do-while(0))
-	
+
 	/*
 		Create client
 	*/
@@ -1164,9 +1164,9 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		delete[] text;
 	}
 	infostream<<"Creating client"<<std::endl;
-	
+
 	MapDrawControl draw_control;
-	
+
 	{
 		wchar_t* text = wgettext("Resolving address...");
 		draw_load_screen(text, device, font,0,75);
@@ -1198,26 +1198,26 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		// Break out of client scope
 		break;
 	}
-	
+
 	/*
 		Create client
 	*/
 	Client client(device, playername.c_str(), password, draw_control,
 		tsrc, shsrc, itemdef, nodedef, sound, &eventmgr,
 		connect_address.isIPv6());
-	
+
 	// Client acts as our GameDef
 	IGameDef *gamedef = &client;
 
 	/*
 		Attempt to connect to the server
 	*/
-	
+
 	infostream<<"Connecting to server at ";
 	connect_address.print(&infostream);
 	infostream<<std::endl;
 	client.connect(connect_address);
-	
+
 	/*
 		Wait for server to accept connection
 	*/
@@ -1244,7 +1244,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			client.step(dtime);
 			if(server != NULL)
 				server->step(dtime);
-			
+
 			// End condition
 			if(client.connectedAndInitialized()){
 				could_connect = true;
@@ -1262,14 +1262,14 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				infostream<<"Connect aborted [Escape]"<<std::endl;
 				break;
 			}
-			
+
 			// Display status
 			{
 				wchar_t* text = wgettext("Connecting to server...");
 				draw_load_screen(text, device, font, dtime, 100);
 				delete[] text;
 			}
-			
+
 			// On some computers framerate doesn't seem to be
 			// automatically limited
 			if (cloud_menu_background) {
@@ -1299,7 +1299,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	}
 	catch(con::PeerNotFoundException &e)
 	{}
-	
+
 	/*
 		Handle failure to connect
 	*/
@@ -1311,7 +1311,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		// Break out of client scope
 		break;
 	}
-	
+
 	/*
 		Wait until content has been received
 	*/
@@ -1338,7 +1338,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			client.step(dtime);
 			if(server != NULL)
 				server->step(dtime);
-			
+
 			// End condition
 			if(client.mediaReceived() &&
 					client.itemdefReceived() &&
@@ -1363,7 +1363,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				infostream<<"Connect aborted [Escape]"<<std::endl;
 				break;
 			}
-			
+
 			// Display status
 			int progress=0;
 			if (!client.itemdefReceived())
@@ -1387,7 +1387,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				draw_load_screen(text, device, font, dtime, progress);
 				delete[] text;
 			}
-			
+
 			// On some computers framerate doesn't seem to be
 			// automatically limited
 			if (cloud_menu_background) {
@@ -1444,7 +1444,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	/*
 		Clouds
 	*/
-	
+
 	Clouds *clouds = NULL;
 	if(g_settings->getBool("enable_clouds"))
 	{
@@ -1459,7 +1459,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	sky = new Sky(smgr->getRootSceneNode(), smgr, -1, client.getEnv().getLocalPlayer());
 
 	scene::ISceneNode* skybox = NULL;
-	
+
 	/*
 		A copy of the local inventory
 	*/
@@ -1495,17 +1495,17 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			L"",
 			core::rect<s32>(0,0,400,text_height*5+5) + v2s32(100,200),
 			false, true);
-	
+
 	// Status text (displays info when showing and hiding GUI stuff, etc.)
 	gui::IGUIStaticText *guitext_status = guienv->addStaticText(
 			L"<Status>",
 			core::rect<s32>(0,0,0,0),
 			false, false);
 	guitext_status->setVisible(false);
-	
+
 	std::wstring statustext;
 	float statustext_time = 0;
-	
+
 	// Chat text
 	gui::IGUIStaticText *guitext_chat = guienv->addStaticText(
 			L"",
@@ -1516,7 +1516,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	chat_backend.clearRecentChat();
 	// Chat backend and console
 	GUIChatConsole *gui_chat_console = new GUIChatConsole(guienv, guienv->getRootGUIElement(), -1, &chat_backend, &client);
-	
+
 	// Profiler text (size is updated when text is updated)
 	gui::IGUIStaticText *guitext_profiler = guienv->addStaticText(
 			L"<Profiler>",
@@ -1525,7 +1525,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	guitext_profiler->setBackgroundColor(video::SColor(120,0,0,0));
 	guitext_profiler->setVisible(false);
 	guitext_profiler->setWordWrap(true);
-	
+
 	/*
 		Some statistics are collected in these
 	*/
@@ -1533,9 +1533,9 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	u32 beginscenetime = 0;
 	u32 scenetime = 0;
 	u32 endscenetime = 0;
-	
+
 	float recent_turn_speed = 0.0;
-	
+
 	ProfilerGraph graph;
 	// Initially clear the profiler
 	Profiler::GraphValues dummyvalues;
@@ -1604,7 +1604,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	LocalPlayer* player = client.getEnv().getLocalPlayer();
 	player->hurt_tilt_timer = 0;
 	player->hurt_tilt_strength = 0;
-	
+
 	/*
 		HUD object
 	*/
@@ -1638,7 +1638,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				busytime_u32 = 0;
 			busytime = busytime_u32 / 1000.0;
 		}
-		
+
 		g_profiler->graphAdd("mainloop_other", busytime - (float)drawtime/1000.0f);
 
 		// Necessary for device->getTimer()->getTime()
@@ -1653,7 +1653,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					g_settings->getFloat("pause_fps_max") :
 					g_settings->getFloat("fps_max");
 			u32 frametime_min = 1000./fps_max;
-			
+
 			if(busytime_u32 < frametime_min)
 			{
 				u32 sleeptime = frametime_min - busytime_u32;
@@ -1669,7 +1669,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			Time difference calculation
 		*/
 		f32 dtime; // in seconds
-		
+
 		u32 time = device->getTimer()->getTime();
 		if(time > lasttime)
 			dtime = (time - lasttime) / 1000.0;
@@ -1686,7 +1686,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		if(object_hit_delay_timer >= 0)
 			object_hit_delay_timer -= dtime;
 		time_from_last_punch += dtime;
-		
+
 		g_profiler->add("Elapsed time", dtime);
 		g_profiler->avg("FPS", 1./dtime);
 
@@ -1715,7 +1715,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				jitter1_max = 0.0;
 			}
 		}
-		
+
 		/*
 			Busytime average and jitter calculation
 		*/
@@ -1723,7 +1723,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		static f32 busytime_avg1 = 0.0;
 		busytime_avg1 = busytime_avg1 * 0.98 + busytime * 0.02;
 		f32 busytime_jitter1 = busytime - busytime_avg1;
-		
+
 		static f32 busytime_jitter1_max_sample = 0.0;
 		static f32 busytime_jitter1_min_sample = 0.0;
 		{
@@ -1747,7 +1747,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Handle miscellaneous stuff
 		*/
-		
+
 		if(client.accessDenied())
 		{
 			error_message = L"Access denied. Reason: "
@@ -1795,12 +1795,12 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		v2s32 displaycenter(screensize.X/2,screensize.Y/2);
 		//bool screensize_changed = screensize != last_screensize;
 
-			
+
 		// Update HUD values
 		hud.screensize    = screensize;
 		hud.displaycenter = displaycenter;
 		hud.resizeHotbar();
-		
+
 		// Hilight boxes collected during the loop and displayed
 		std::vector<aabb3f> hilightboxes;
 
@@ -1832,7 +1832,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Direct handling of user input
 		*/
-		
+
 		// Reset input if window not active or some menu is active
 		if(device->isWindowActive() == false
 				|| noMenuActive() == false
@@ -1869,7 +1869,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		{
 			infostream<<"the_game: "
 					<<"Launching inventory"<<std::endl;
-			
+
 			GUIFormSpecMenu *menu =
 				new GUIFormSpecMenu(device, guiroot, -1,
 					&g_menumgr,
@@ -2105,7 +2105,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					+ itos(range_new));
 			statustext_time = 0;
 		}
-		
+
 		// Reset jump_timer
 		if(!input->isKeyDown(getKeySetting("keymap_jump")) && reset_jump_timer)
 		{
@@ -2152,7 +2152,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					new_playeritem = max_item;
 			}
 		}
-		
+
 		// Item selection
 		for(u16 i=0; i<10; i++)
 		{
@@ -2202,7 +2202,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			Mouse and camera control
 			NOTE: Do this before client.setPlayerControl() to not cause a camera lag of one frame
 		*/
-		
+
 		float turn_amount = 0;
 		if((device->isWindowActive() && noMenuActive()) || random_input)
 		{
@@ -2370,7 +2370,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 							new GUIDeathScreen(guienv, guiroot, -1,
 								&g_menumgr, respawner);
 					menu->drop();
-					
+
 					chat_backend.addMessage(L"", L"You died.");
 
 					/* Handle visualization */
@@ -2472,7 +2472,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 						delete event.hudadd.world_pos;
 						continue;
 					}
-					
+
 					HudElement *e = new HudElement;
 					e->type   = (HudElementType)event.hudadd.type;
 					e->pos    = *event.hudadd.pos;
@@ -2485,7 +2485,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					e->align  = *event.hudadd.align;
 					e->offset = *event.hudadd.offset;
 					e->world_pos = *event.hudadd.world_pos;
-					
+
 					if (id == nhudelem)
 						player->hud.push_back(e);
 					else
@@ -2516,7 +2516,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 						delete event.hudchange.sdata;
 						continue;
 					}
-						
+
 					HudElement* e = player->hud[id];
 					switch (event.hudchange.stat) {
 						case HUD_STAT_POS:
@@ -2550,7 +2550,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 							e->world_pos = *event.hudchange.v3fdata;
 							break;
 					}
-					
+
 					delete event.hudchange.v3fdata;
 					delete event.hudchange.v2fdata;
 					delete event.hudchange.sdata;
@@ -2597,7 +2597,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				}
 			}
 		}
-		
+
 		//TimeTaker //timer2("//timer2");
 
 		/*
@@ -2618,7 +2618,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				playeritem.getDefinition(itemdef);
 		ToolCapabilities playeritem_toolcap =
 				playeritem.getToolCapabilities(itemdef);
-		
+
 		/*
 			Update camera
 		*/
@@ -2641,7 +2641,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		v3s16 camera_offset = camera.getOffset();
 
 		bool camera_offset_changed = (camera_offset != old_camera_offset);
-		
+
 		if(!disable_camera_update){
 			client.getEnv().getClientMap().updateCamera(camera_position,
 				camera_direction, camera_fov, camera_offset);
@@ -2652,7 +2652,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					clouds->updateCameraOffset(camera_offset);
 			}
 		}
-		
+
 		// Update sound listener
 		sound->updateListener(camera.getCameraNode()->getPosition(),
 				v3f(0,0,0), // velocity
@@ -2665,7 +2665,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		*/
 		{
 			soundmaker.step(dtime);
-			
+
 			ClientMap &map = client.getEnv().getClientMap();
 			MapNode n = map.getNodeNoEx(player->getStandingNodePos());
 			soundmaker.m_player_step_sound = nodedef->get(n).sound_footstep;
@@ -2674,9 +2674,9 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Calculate what block is the crosshair pointing to
 		*/
-		
+
 		//u32 t1 = device->getTimer()->getRealTime();
-		
+
 		f32 d = playeritem_def.range; // max. distance
 		f32 d_hand = itemdef->get("").range;
 		if(d < 0 && d_hand >= 0)
@@ -2766,7 +2766,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			/*
 				Check information text of node
 			*/
-			
+
 			ClientMap &map = client.getEnv().getClientMap();
 			NodeMetadata *meta = map.getNodeMetadata(nodepos);
 			if(meta){
@@ -2778,11 +2778,11 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					infotext += narrow_to_wide(nodedef->get(n).name);
 				}
 			}
-			
+
 			/*
 				Handle digging
 			*/
-			
+
 			if(nodig_delay_timer <= 0.0 && input->getLeftState()
 					&& client.checkPrivilege("interact"))
 			{
@@ -2794,7 +2794,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					ldown_for_dig = true;
 				}
 				MapNode n = client.getEnv().getClientMap().getNode(nodepos);
-				
+
 				// NOTE: Similar piece of code exists on the server side for
 				// cheat detection.
 				// Get digging parameters
@@ -2895,7 +2895,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					float mindelay = 0.15;
 					if(nodig_delay_timer < mindelay)
 						nodig_delay_timer = mindelay;
-					
+
 					// Send event to trigger sound
 					MtEvent *e = new NodeDugEvent(nodepos, wasnode);
 					gamedef->event()->put(e);
@@ -2918,7 +2918,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			{
 				repeat_rightclick_timer = 0;
 				infostream<<"Ground right-clicked"<<std::endl;
-				
+
 				// Sign special case, at least until formspec is properly implemented.
 				// Deprecated?
 				if(meta && meta->getString("formspec") == "hack:sign_text_input"
@@ -2926,7 +2926,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 						&& !input->isKeyDown(getKeySetting("keymap_sneak")))
 				{
 					infostream<<"Launching metadata text input"<<std::endl;
-					
+
 					// Get a new text for it
 
 					TextDest *dest = new TextDestNodeMetadata(nodepos, &client);
@@ -2945,7 +2945,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 
 					InventoryLocation inventoryloc;
 					inventoryloc.setNodeMeta(nodepos);
-					
+
 					/* Create menu */
 
 					GUIFormSpecMenu *menu =
@@ -3016,7 +3016,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					// Report direct punch
 					v3f objpos = selected_object->getPosition();
 					v3f dir = (objpos - player_position).normalize();
-					
+
 					bool disable_send = selected_object->directReportPunch(
 							dir, &playeritem, time_from_last_punch);
 					time_from_last_punch = 0;
@@ -3037,7 +3037,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		}
 
 		pointed_old = pointed;
-		
+
 		if(left_punch || input->getLeftClicked())
 		{
 			camera.setDigging(0); // left click animation
@@ -3048,7 +3048,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 
 		input->resetLeftReleased();
 		input->resetRightReleased();
-		
+
 		/*
 			Calculate stuff for drawing
 		*/
@@ -3056,7 +3056,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Fog range
 		*/
-	
+
 		if(draw_control.range_all)
 			fog_range = 100000*BS;
 		else {
@@ -3085,7 +3085,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 					daynight_ratio, (int)(old_brightness*255.5), &sunlight_seen)
 					/ 255.0;
 		}
-		
+
 		time_of_day = client.getEnv().getTimeOfDayF();
 		float maxsm = 0.05;
 		if(fabs(time_of_day - time_of_day_smooth) > maxsm &&
@@ -3099,10 +3099,10 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		else
 			time_of_day_smooth = time_of_day_smooth * (1.0-todsm)
 					+ time_of_day * todsm;
-			
+
 		sky->update(time_of_day_smooth, time_brightness, direct_brightness,
 				sunlight_seen);
-		
+
 		video::SColor bgcolor = sky->getBgColor();
 		video::SColor skycolor = sky->getSkyColor();
 
@@ -3119,18 +3119,18 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				clouds->setVisible(false);
 			}
 		}
-		
+
 		/*
 			Update particles
 		*/
 
 		allparticles_step(dtime);
 		allparticlespawners_step(dtime, client.getEnv());
-		
+
 		/*
 			Fog
 		*/
-		
+
 		if(g_settings->getBool("enable_fog") && !force_fog_off)
 		{
 			driver->setFog(
@@ -3159,9 +3159,6 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Update gui stuff (0ms)
 		*/
-
-		//TimeTaker guiupdatetimer("Gui updating");
-		
 		if(show_debug)
 		{
 			static float drawtime_avg = 0;
@@ -3203,7 +3200,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		{
 			guitext->setVisible(false);
 		}
-		
+
 		if(show_debug)
 		{
 			std::ostringstream os(std::ios_base::binary);
@@ -3223,7 +3220,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		{
 			guitext2->setVisible(false);
 		}
-		
+
 		{
 			guitext_info->setText(infotext.c_str());
 			guitext_info->setVisible(show_hud && g_menumgr.menuCount() == 0);
@@ -3269,7 +3266,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				guitext_status->enableOverrideColor(true);
 			}
 		}
-		
+
 		/*
 			Get chat messages from client
 		*/
@@ -3314,7 +3311,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Inventory
 		*/
-		
+
 		if(client.getPlayerItem() != new_playeritem)
 		{
 			client.selectPlayerItem(new_playeritem);
@@ -3323,7 +3320,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		{
 			//infostream<<"Updating local inventory"<<std::endl;
 			client.getLocalInventory(local_inventory);
-			
+
 			update_wielded_item_trigger = true;
 		}
 		if(update_wielded_item_trigger)
@@ -3355,7 +3352,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		*/
 
 		TimeTaker tt_draw("mainloop: draw");
-		
+
 		{
 			TimeTaker timer("beginScene");
 			//driver->beginScene(false, true, bgcolor);
@@ -3363,14 +3360,14 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			driver->beginScene(true, true, skycolor);
 			beginscenetime = timer.stop(true);
 		}
-		
+
 		//timer3.stop();
-	
+
 		//infostream<<"smgr->drawAll()"<<std::endl;
 		{
 			TimeTaker timer("smgr");
 			smgr->drawAll();
-			
+
 			if(g_settings->getBool("anaglyph"))
 			{
 				irr::core::vector3df oldPosition = camera.getCameraNode()->getPosition();
@@ -3452,14 +3449,14 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 
 			scenetime = timer.stop(true);
 		}
-		
+
 		{
 		//TimeTaker timer9("auxiliary drawings");
 		// 0ms
-		
+
 		//timer9.stop();
 		//TimeTaker //timer10("//timer10");
-		
+
 		video::SMaterial m;
 		//m.Thickness = 10;
 		m.Thickness = 3;
@@ -3501,7 +3498,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		*/
 		if (show_hud)
 			hud.drawCrosshair();
-			
+
 		} // timer
 
 		//timer10.stop();
@@ -3526,7 +3523,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			driver->draw2DRectangle(color,
 					core::rect<s32>(0,0,screensize.X,screensize.Y),
 					NULL);
-			
+
 			damage_flash -= 100.0*dtime;
 		}
 
@@ -3586,7 +3583,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	if (sky)
 		sky->drop();
 	clear_particles();
-	
+
 	/*
 		Draw a "shutting down" screen, which will be shown while the map
 		generator and other stuff quits
@@ -3635,7 +3632,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	}
 
 
-	
+
 	if(!sound_is_dummy)
 		delete sound;
 
