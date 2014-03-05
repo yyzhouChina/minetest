@@ -41,7 +41,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif
 
 #include "irrlicht.h" // createDevice
-
 #include "main.h"
 #include "mainmenumanager.h"
 #include <iostream>
@@ -263,6 +262,7 @@ public:
 			} else {
 				keyIsDown.unset(event.KeyInput);
 			}
+			return true;
 		}
 
 		if(event.EventType == irr::EET_MOUSE_INPUT_EVENT)
@@ -1474,8 +1474,9 @@ int main(int argc, char *argv[])
 	InputHandler *input = NULL;
 	if(random_input)
 		input = new RandomInputHandler();
-	else
+	else {
 		input = new RealInputHandler(device, &receiver);
+	}
 
 	scene::ISceneManager* smgr = device->getSceneManager();
 
