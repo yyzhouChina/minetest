@@ -1871,8 +1871,6 @@ void GUIFormSpecMenu::drawMenu()
 		}
 	}
 
-	m_pointer = m_device->getCursorControl()->getPosition();
-
 	updateSelectedItem();
 
 	gui::IGUISkin* skin = Environment->getSkin();
@@ -2015,6 +2013,9 @@ void GUIFormSpecMenu::drawMenu()
 	*/
 	gui::IGUIElement::draw();
 
+/* TODO find way to show tooltips on touchscreen */
+#ifndef HAVE_TOUCHSCREENGUI
+	m_pointer = m_device->getCursorControl()->getPosition();
 	/*
 		Draw fields/buttons tooltips
 	*/
@@ -2039,7 +2040,8 @@ void GUIFormSpecMenu::drawMenu()
 			}
 		}
 	}
-	
+#endif
+
 	/*
 		Draw dragged item stack
 	*/
@@ -2282,7 +2284,13 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 	if(event.EventType==EET_KEY_INPUT_EVENT)
 	{
 		KeyPress kp(event.KeyInput);
-		if (kp == EscapeKey || kp == getKeySetting("keymap_inventory")
+#ifdef ANDROID
+		if (event.KeyInput.Key == KEY_RETURN) {
+			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
+		}
+#endif
+
+		if (kp == EscapeKey || kp == CancelKey || kp == getKeySetting("keymap_inventory")
 				|| event.KeyInput.Key==KEY_RETURN)
 		{
 			gui::IGUIElement *focused = Environment->getFocus();
@@ -2323,6 +2331,141 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 			}
 		}
 	}
+
+	#ifdef ANDROID
+	// display software keyboard when clicking edit boxes
+	if (event.EventType == EET_MOUSE_INPUT_EVENT
+			&& event.MouseInput.Event == EMIE_LMOUSE_PRESSED_DOWN) {
+		gui::IGUIElement *hovered =
+			Environment->getRootGUIElement()->getElementFromPoint(
+				core::position2d<s32>(event.MouseInput.X, event.MouseInput.Y));
+		if (hovered->getType() == irr::gui::EGUIET_EDIT_BOX) {
+			porting::displayKeyboard(true, porting::app_global, porting::jnienv);
+			bool retval = hovered->OnEvent(event);
+
+			if (retval) {
+				Environment->setFocus(hovered);
+			}
+			return retval;
+		}
+		else {
+			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
+		}
+	}
+
+	if (event.EventType == EET_TOUCH_INPUT_EVENT) {
+		errorstream << "GUIFormSpecMenu::preprocessEvent touch event"
+				<< " ID=" << event.TouchInput.ID
+				<< " event type=" << event.TouchInput.Event
+				<< std::endl;
+
+		SEvent translated;
+		memset(&translated,0,sizeof(SEvent));
+		translated.EventType = EET_MOUSE_INPUT_EVENT;
+
+		gui::IGUIElement* root = Environment->getRootGUIElement();
+
+		if (!root) {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent unable to get root element"
+			<< std::endl;
+			return false;
+		}
+		gui::IGUIElement* hovered = root->getElementFromPoint(
+			core::position2d<s32>(
+					event.TouchInput.X,
+					event.TouchInput.Y));
+
+		translated.MouseInput.X = event.TouchInput.X;
+		translated.MouseInput.Y = event.TouchInput.Y;
+		translated.MouseInput.Control = false;
+
+		bool dont_send_event = false;
+
+		if (event.TouchInput.touchedCount == 1) {
+			switch (event.TouchInput.Event) {
+				case ETIE_PRESSED_DOWN:
+					m_pointer = v2s32(event.TouchInput.X,event.TouchInput.Y);
+					translated.MouseInput.Event = EMIE_LMOUSE_PRESSED_DOWN;
+					translated.MouseInput.ButtonStates = EMBSM_LEFT;
+					m_down_pos = m_pointer;
+					break;
+				case ETIE_MOVED:
+					m_pointer = v2s32(event.TouchInput.X,event.TouchInput.Y);
+					translated.MouseInput.Event = EMIE_MOUSE_MOVED;
+					translated.MouseInput.ButtonStates = EMBSM_LEFT;
+					break;
+				case ETIE_LEFT_UP:
+					translated.MouseInput.Event = EMIE_LMOUSE_LEFT_UP;
+					translated.MouseInput.ButtonStates = 0;
+					hovered = root->getElementFromPoint(m_down_pos);
+					/* we don't have a valid pointer element use last known pointer pos */
+					translated.MouseInput.X = m_pointer.X;
+					translated.MouseInput.Y = m_pointer.Y;
+
+					/* reset down pos */
+					m_down_pos = v2s32(0,0);
+					break;
+				default:
+					dont_send_event = true;
+					//this is not supposed to happen
+					errorstream
+					<< "GUIFormSpecMenu::preprocessEvent unexpected usecase Event="
+					<< event.TouchInput.Event << std::endl;
+			}
+		}
+		else if ( (event.TouchInput.touchedCount == 2) &&
+				(event.TouchInput.Event == ETIE_PRESSED_DOWN) ) {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent rightclick" << std::endl;
+			hovered = root->getElementFromPoint(m_down_pos);
+
+			translated.MouseInput.Event = EMIE_RMOUSE_PRESSED_DOWN;
+			translated.MouseInput.ButtonStates = EMBSM_LEFT | EMBSM_RIGHT;
+			translated.MouseInput.X = m_pointer.X;
+			translated.MouseInput.Y = m_pointer.Y;
+
+			if (hovered) {
+				hovered->OnEvent(translated);
+			}
+
+			translated.MouseInput.Event = EMIE_RMOUSE_LEFT_UP;
+			translated.MouseInput.ButtonStates = EMBSM_LEFT;
+
+
+			if (hovered) {
+				hovered->OnEvent(translated);
+			}
+			dont_send_event = true;
+		}
+		else {
+			errorstream
+			<< "GUIFormSpecMenu::preprocessEvent to many multitouch events "
+			<< event.TouchInput.touchedCount << " ignoring them" << std::endl;
+		}
+
+		if (dont_send_event) {
+			return true;
+		}
+
+		/* check if translated event needs to be preprocessed again */
+		if (preprocessEvent(translated)) {
+			return true;
+		}
+		if (hovered) {
+			grab();
+			bool retval = hovered->OnEvent(translated);
+
+			if (event.TouchInput.Event == ETIE_LEFT_UP) {
+				/* reset pointer */
+				m_pointer = v2s32(0,0);
+				drop();
+			}
+			return retval;
+		}
+	}
+	#endif
+
 	return false;
 }
 
@@ -2375,7 +2518,7 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 	{
 		KeyPress kp(event.KeyInput);
 		if (event.KeyInput.PressedDown && (kp == EscapeKey ||
-			kp == getKeySetting("keymap_inventory")))
+			kp == getKeySetting("keymap_inventory") || kp == CancelKey))
 		{
 			if (m_allowclose){
 				acceptInput(quit_mode_cancel);

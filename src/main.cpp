@@ -84,6 +84,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "database-leveldb.h"
 #endif
 
+#if defined(ANDROID) && defined(GPROF)
+#include "prof.h"
+#endif
+
+#ifdef HAVE_TOUCHSCREENGUI
+#include "touchscreengui.h"
+#endif
 /*
 	Settings.
 	These are loaded from the config file.
@@ -239,6 +246,8 @@ public:
 	      probably to InputHandler and the_game
 */
 
+static v2u32 screensize;
+
 class MyEventReceiver : public IEventReceiver
 {
 public:
@@ -250,6 +259,11 @@ public:
 		*/
 		if(noMenuActive() == false)
 		{
+#ifdef HAVE_TOUCHSCREENGUI
+			if (m_touchscreengui != 0) {
+				m_touchscreengui->Toggle(false);
+			}
+#endif
 			return g_menumgr.preprocessEvent(event);
 		}
 
@@ -264,7 +278,15 @@ public:
 			}
 			return true;
 		}
-
+#ifdef HAVE_TOUCHSCREENGUI
+		// case of touchscreengui we have to handle different events
+		if ((m_touchscreengui != 0) &&
+				(event.EventType == irr::EET_TOUCH_INPUT_EVENT)) {
+			m_touchscreengui->translateEvent(event);
+			return true;
+		}
+#endif
+		// handle mouse events
 		if(event.EventType == irr::EET_MOUSE_INPUT_EVENT)
 		{
 			if(noMenuActive() == false)
@@ -300,6 +322,12 @@ public:
 					mouse_wheel += event.MouseInput.Wheel;
 				}
 			}
+		}
+
+		if(event.EventType == irr::EET_LOG_TEXT_EVENT)
+		{
+			dstream<<"Irrlicht log: "<<event.LogEvent.Text<<std::endl;
+			return true;
 		}
 
 		return false;
@@ -346,6 +374,9 @@ public:
 	MyEventReceiver()
 	{
 		clearInput();
+#ifdef HAVE_TOUCHSCREENGUI
+		m_touchscreengui = NULL;
+#endif
 	}
 
 	bool leftclicked;
@@ -359,6 +390,12 @@ public:
 
 	s32 mouse_wheel;
 
+	v2s32 mouse_pos;
+
+#ifdef HAVE_TOUCHSCREENGUI
+	TouchScreenGUI* m_touchscreengui;
+#endif
+
 private:
 	IrrlichtDevice *m_device;
 
@@ -366,17 +403,18 @@ private:
 	KeyList keyIsDown;
 	// Whether a key has been pressed or not
 	KeyList keyWasDown;
+
+
 };
+
 
 /*
 	Separated input handler
 */
-
 class RealInputHandler : public InputHandler
 {
 public:
-	RealInputHandler(IrrlichtDevice *device, MyEventReceiver *receiver):
-		m_device(device),
+	RealInputHandler(MyEventReceiver *receiver):
 		m_receiver(receiver)
 	{
 	}
@@ -390,11 +428,11 @@ public:
 	}
 	virtual v2s32 getMousePos()
 	{
-		return m_device->getCursorControl()->getPosition();
+		return m_receiver->mouse_pos;
 	}
 	virtual void setMousePos(s32 x, s32 y)
 	{
-		m_device->getCursorControl()->setPosition(x, y);
+		m_receiver->mouse_pos = v2s32(x, y);
 	}
 
 	virtual bool getLeftState()
@@ -450,7 +488,6 @@ public:
 		m_receiver->clearInput();
 	}
 private:
-	IrrlichtDevice *m_device;
 	MyEventReceiver *m_receiver;
 };
 
@@ -867,8 +904,24 @@ int main(int argc, char *argv[])
 
 	porting::initializePaths();
 
+#ifdef ANDROID
+	porting::jnienv = NULL;
+	JavaVM *jvm = porting::app_global->activity->vm;
+	JavaVMAttachArgs lJavaVMAttachArgs;
+	lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+	lJavaVMAttachArgs.name = "NativeThread";
+	lJavaVMAttachArgs.group = NULL;
+	jvm->AttachCurrentThread(&porting::jnienv, &lJavaVMAttachArgs);
+
+	porting::setExternalStorageDir(porting::jnienv);
+	if (!fs::PathExists(porting::path_user)) {
+		fs::CreateDir(porting::path_user);
+		porting::extractAssets(porting::app_global);
+	}
+#else
 	// Create user data directory
 	fs::CreateDir(porting::path_user);
+#endif
 
 	infostream<<"path_share = "<<porting::path_share<<std::endl;
 	infostream<<"path_user  = "<<porting::path_user<<std::endl;
@@ -1002,7 +1055,7 @@ int main(int argc, char *argv[])
 	if((ENABLE_TESTS && cmd_args.getFlag("disable-unittests") == false)
 			|| cmd_args.getFlag("enable-unittests") == true)
 	{
-		run_tests();
+		//run_tests();
 	}
 #ifdef _MSC_VER
 	init_gettext((porting::path_share + DIR_DELIM + "locale").c_str(),g_settings->get("language"),argc,argv);
@@ -1364,7 +1417,7 @@ int main(int argc, char *argv[])
 		List video modes if requested
 	*/
 
-	MyEventReceiver receiver;
+	MyEventReceiver* receiver = new MyEventReceiver();
 
 	if(cmd_args.getFlag("videomodes")){
 		IrrlichtDevice *nulldevice;
@@ -1377,7 +1430,7 @@ int main(int argc, char *argv[])
 		params.Fullscreen    = false;
 		params.Stencilbuffer = false;
 		params.Vsync         = vsync;
-		params.EventReceiver = &receiver;
+		params.EventReceiver = receiver;
 		params.HighPrecisionFPU = g_settings->getBool("high_precision_fpu");
 
 		nulldevice = createDeviceEx(params);
@@ -1413,6 +1466,7 @@ int main(int argc, char *argv[])
 
 		nulldevice->drop();
 
+		delete receiver;
 		return 0;
 	}
 
@@ -1430,13 +1484,21 @@ int main(int argc, char *argv[])
 	params.Fullscreen    = fullscreen;
 	params.Stencilbuffer = false;
 	params.Vsync         = vsync;
-	params.EventReceiver = &receiver;
+	params.EventReceiver = receiver;
 	params.HighPrecisionFPU = g_settings->getBool("high_precision_fpu");
+#ifdef ANDROID
+	params.PrivateData = porting::app_global;
+#endif
 
 	device = createDeviceEx(params);
 
-	if (device == 0)
+	screensize = device->getVideoDriver()->getScreenSize();
+
+
+	if (device == 0) {
+		delete receiver;
 		return 1; // could not create selected driver.
+	}
 
 	/*
 		Continue initialization
@@ -1472,10 +1534,11 @@ int main(int argc, char *argv[])
 	bool random_input = g_settings->getBool("random_input")
 			|| cmd_args.getFlag("random-input");
 	InputHandler *input = NULL;
+
 	if(random_input)
 		input = new RandomInputHandler();
 	else {
-		input = new RealInputHandler(device, &receiver);
+		input = new RealInputHandler(receiver);
 	}
 
 	scene::ISceneManager* smgr = device->getSceneManager();
@@ -1611,7 +1674,9 @@ int main(int argc, char *argv[])
 				first_loop = false;
 
 				// Cursor can be non-visible when coming from the game
+				#ifndef ANDROID
 				device->getCursorControl()->setVisible(true);
+				#endif
 				// Some stuff are left to scene manager when coming from the game
 				// (map at least?)
 				smgr->clear();
@@ -1663,9 +1728,9 @@ int main(int argc, char *argv[])
 					}
 					infostream<<"Waited for other menus"<<std::endl;
 
-					GUIEngine* temp = new GUIEngine(device, guiroot, &g_menumgr,smgr,&menudata,kill);
+					/* show main menu */
+					GUIEngine mymenu(device, guiroot, &g_menumgr,smgr,&menudata,kill);
 
-					delete temp;
 					//once finished you'll never end up here
 					smgr->clear();
 				}
@@ -1785,6 +1850,10 @@ int main(int argc, char *argv[])
 			/*
 				Run game
 			*/
+#ifdef HAVE_TOUCHSCREENGUI
+	receiver->m_touchscreengui = new TouchScreenGUI(device, receiver);
+	touchscreengui = receiver->m_touchscreengui;
+#endif
 			the_game(
 				kill,
 				random_input,
@@ -1802,6 +1871,11 @@ int main(int argc, char *argv[])
 				simple_singleplayer_mode
 			);
 			smgr->clear();
+#ifdef HAVE_TOUCHSCREENGUI
+	delete touchscreengui;
+	touchscreengui = NULL;
+	receiver->m_touchscreengui = NULL;
+#endif
 
 		} //try
 		catch(con::PeerNotFoundException &e)
@@ -1847,7 +1921,7 @@ int main(int argc, char *argv[])
 	if (use_freetype)
 		font->drop();
 #endif
-
+	delete receiver;
 #endif // !SERVER
 
 	// Update configuration file
@@ -1876,9 +1950,28 @@ int main(int argc, char *argv[])
 	END_DEBUG_EXCEPTION_HANDLER(errorstream)
 
 	debugstreams_deinit();
-
 	return retval;
 }
 
-//END
+#ifdef ANDROID
+void android_main(android_app *app) {
 
+	porting::app_global = app;
+
+#if defined(GPROF)
+	/* in the start-up code */
+	monstartup("libMinetest.so");
+#endif
+
+	porting::setThreadName("MainThread");
+
+	try {
+		app_dummy();
+		char *argv[] = {"minetest"/*, "--worldname", "test", "--go", "--random-input"*/};
+		main(sizeof(argv) / sizeof(argv[0]), argv);
+		}
+	catch(...) {
+		__android_log_print(porting::ANDROID_LOG_ERROR, PROJECT_NAME, "Some exception occured");
+	}
+}
+#endif

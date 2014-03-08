@@ -13,8 +13,14 @@
 #define USE_CURL 0
 #define USE_FREETYPE 0
 #define STATIC_SHAREDIR ""
-#define USE_LEVELDB 0
-#define USE_LUAJIT 0
+
+#ifndef USE_LEVELDB
+	#define USE_LEVELDB 0
+#endif
+
+#ifndef USE_LUAJIT
+	#define USE_LUAJIT 0
+#endif
 
 #ifdef USE_CMAKE_CONFIG_H
 	#include "cmake_config.h"

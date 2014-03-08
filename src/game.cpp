@@ -70,6 +70,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "util/directiontables.h"
 #include "util/pointedthing.h"
 
+#if defined(ANDROID) && defined(GPROF)
+#include "prof.h"
+#endif
+
+#ifdef HAVE_TOUCHSCREENGUI
+#include "touchscreengui.h"
+TouchScreenGUI *touchscreengui;
+#endif
+
 /*
 	Text input system
 */
@@ -150,6 +159,9 @@ struct LocalFormspecHandler : public TextDest
 			}
 
 			if (fields.find("btn_exit_os") != fields.end()) {
+#if defined(ANDROID) && defined(GPROF)
+				moncleanup();
+#endif
 				g_gamecallback->exitToOS();
 				return;
 			}
@@ -1257,7 +1269,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				errorstream<<wide_to_narrow(error_message)<<std::endl;
 				break;
 			}
-			if(input->wasKeyDown(EscapeKey)){
+			if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey)){
 				connect_aborted = true;
 				infostream<<"Connect aborted [Escape]"<<std::endl;
 				break;
@@ -1358,7 +1370,7 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				errorstream<<wide_to_narrow(error_message)<<std::endl;
 				break;
 			}
-			if(input->wasKeyDown(EscapeKey)){
+			if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey)){
 				content_aborted = true;
 				infostream<<"Connect aborted [Escape]"<<std::endl;
 				break;
@@ -1526,6 +1538,11 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	guitext_profiler->setVisible(false);
 	guitext_profiler->setWordWrap(true);
 
+
+#ifdef HAVE_TOUCHSCREENGUI
+	if (touchscreengui)
+		touchscreengui->init(tsrc);
+#endif
 	/*
 		Some statistics are collected in these
 	*/
@@ -1847,6 +1864,10 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 
 		// Input handler step() (used by the random input generator)
 		input->step(dtime);
+#ifdef HAVE_TOUCHSCREENGUI
+		if (touchscreengui)
+			touchscreengui->step(dtime);
+#endif
 
 		// Increase timer for doubleclick of "jump"
 		if(g_settings->getBool("doubletap_jump") && jump_timer <= 0.2)
@@ -1884,8 +1905,12 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			menu->setFormSource(src);
 			menu->setTextDest(new TextDestPlayerInventory(&client));
 			menu->drop();
+#ifdef HAVE_TOUCHSCREENGUI
+			if (touchscreengui)
+				touchscreengui->Hide();
+#endif
 		}
-		else if(input->wasKeyDown(EscapeKey))
+		else if(input->wasKeyDown(EscapeKey) || input->wasKeyDown(CancelKey))
 		{
 			show_pause_menu(current_formspec, current_textdest, tsrc, device);
 		}
@@ -2208,9 +2233,11 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		{
 			if(!random_input)
 			{
+#ifndef ANDROID
 				// Mac OSX gets upset if this is set every frame
 				if(device->getCursorControl()->isVisible())
 					device->getCursorControl()->setVisible(false);
+#endif
 			}
 
 			if(first_loop_after_window_activation){
@@ -2218,37 +2245,38 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 				first_loop_after_window_activation = false;
 			}
 			else{
-				s32 dx = input->getMousePos().X - displaycenter.X;
-				s32 dy = input->getMousePos().Y - displaycenter.Y;
-				if(invert_mouse)
-					dy = -dy;
-				//infostream<<"window active, pos difference "<<dx<<","<<dy<<std::endl;
-				
-				/*const float keyspeed = 500;
-				if(input->isKeyDown(irr::KEY_UP))
-					dy -= dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_DOWN))
-					dy += dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_LEFT))
-					dx -= dtime * keyspeed;
-				if(input->isKeyDown(irr::KEY_RIGHT))
-					dx += dtime * keyspeed;*/
-				
-				float d = g_settings->getFloat("mouse_sensitivity");
-				d = rangelim(d, 0.01, 100.0);
-				camera_yaw -= dx*d;
-				camera_pitch += dy*d;
-				if(camera_pitch < -89.5) camera_pitch = -89.5;
-				if(camera_pitch > 89.5) camera_pitch = 89.5;
-				
-				turn_amount = v2f(dx, dy).getLength() * d;
+#ifdef HAVE_TOUCHSCREENGUI
+				if (touchscreengui) {
+					camera_yaw   = touchscreengui->getYaw();
+					camera_pitch = touchscreengui->getPitch();
+				}
+				else
+#endif
+				{
+					s32 dx = input->getMousePos().X - displaycenter.X;
+					s32 dy = input->getMousePos().Y - displaycenter.Y;
+					if(invert_mouse)
+						dy = -dy;
+
+					float d = g_settings->getFloat("mouse_sensitivity");
+					d = rangelim(d, 0.01, 100.0);
+					camera_yaw -= dx*d;
+					camera_pitch += dy*d;
+
+					if(camera_pitch < -89.5) camera_pitch = -89.5;
+					if(camera_pitch > 89.5) camera_pitch = 89.5;
+
+					turn_amount = v2f(dx, dy).getLength() * d;
+				}
 			}
 			input->setMousePos(displaycenter.X, displaycenter.Y);
 		}
 		else{
+#ifndef ANDROID
 			// Mac OSX gets upset if this is set every frame
 			if(device->getCursorControl()->isVisible() == false)
 				device->getCursorControl()->setVisible(true);
+#endif
 
 			//infostream<<"window inactive"<<std::endl;
 			first_loop_after_window_activation = true;
@@ -2685,6 +2713,10 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			d = 4.0;
 		core::line3d<f32> shootline(camera_position,
 				camera_position + camera_direction * BS * (d+1));
+#ifdef HAVE_TOUCHSCREENGUI
+		if (touchscreengui)
+			shootline = touchscreengui->getShootline();
+#endif
 
 		ClientActiveObject *selected_object = NULL;
 
@@ -3494,9 +3526,14 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		}
 
 		/*
-			Draw crosshair
+			Draw crosshair (only when no touchscreen gui is used)
 		*/
-		if (show_hud)
+		if (
+			show_hud
+#ifdef HAVE_TOUCHSCREENGUI
+			&& !touchscreengui
+#endif
+			)
 			hud.drawCrosshair();
 
 		} // timer
@@ -3643,7 +3680,6 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 	delete shsrc;
 	delete nodedef;
 	delete itemdef;
-
 	//extended resource accounting
 	infostream << "Irrlicht resources after cleanup:" << std::endl;
 	infostream << "\tRemaining meshes   : "

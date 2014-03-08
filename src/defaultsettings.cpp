@@ -127,7 +127,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("anisotropic_filter", "false");
 	settings->setDefault("bilinear_filter", "false");
 	settings->setDefault("trilinear_filter", "false");
-	settings->setDefault("preload_item_visuals", "true");
+	settings->setDefault("preload_item_visuals", "false");
 	settings->setDefault("enable_bumpmapping", "false");
 	settings->setDefault("enable_parallax_occlusion", "false");
 	settings->setDefault("parallax_occlusion_scale", "0.08");
@@ -224,7 +224,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("emergequeue_limit_diskonly", "32");
 	settings->setDefault("emergequeue_limit_generate", "32");
 	settings->setDefault("num_emerge_threads", "1");
-	
+
 	// physics stuff
 	settings->setDefault("movement_acceleration_default", "3");
 	settings->setDefault("movement_acceleration_air", "2");
@@ -271,6 +271,16 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("high_precision_fpu", "true");
 
 	settings->setDefault("language", "");
+
+#ifdef ANDROID
+	settings->setDefault("screenW", "0");
+	settings->setDefault("screenH", "0");
+	settings->setDefault("enable_shaders", "false");
+	settings->setDefault("fullscreen", "true");
+	settings->setDefault("enable_particles", "false");
+	settings->setDefault("video_driver", "ogles1");
+	settings->setDefault("main_menu_script","/sdcard/Minetest/builtin/mainmenu_simple.lua");
+#endif
 }
 
 void override_default_settings(Settings *settings, Settings *from)

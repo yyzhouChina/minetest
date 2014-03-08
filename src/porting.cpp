@@ -167,6 +167,7 @@ int getNumberOfProcessors() {
 }
 
 
+#ifndef _IRR_ANDROID_PLATFORM_
 bool threadBindToProcessor(threadid_t tid, int pnumber) {
 #if defined(_WIN32)
 
@@ -219,7 +220,7 @@ bool threadBindToProcessor(threadid_t tid, int pnumber) {
 
 #endif
 }
-
+#endif
 
 bool threadSetPriority(threadid_t tid, int prio) {
 #if defined(_WIN32)
@@ -469,8 +470,12 @@ void initializePaths()
 	std::string static_sharedir = STATIC_SHAREDIR;
 	if(static_sharedir != "" && static_sharedir != ".")
 		trylist.push_back(static_sharedir);
-	trylist.push_back(bindir + "/../share/" + PROJECT_NAME);
-	trylist.push_back(bindir + "/..");
+	trylist.push_back(
+			bindir + DIR_DELIM + ".." + DIR_DELIM + "share" + DIR_DELIM + PROJECT_NAME);
+	trylist.push_back(bindir + DIR_DELIM + "..");
+#ifdef ANDROID
+	trylist.push_back(DIR_DELIM "sdcard" DIR_DELIM PROJECT_NAME);
+#endif
 
 	for(std::list<std::string>::const_iterator i = trylist.begin();
 			i != trylist.end(); i++)
@@ -490,7 +495,16 @@ void initializePaths()
 		break;
 	}
 
+	infostream << "something something " PROJECT_NAME << std::endl;
+
+#ifndef ANDROID
 	path_user = std::string(getenv("HOME")) + DIR_DELIM + "." + PROJECT_NAME;
+#else
+	path_user = std::string(DIR_DELIM "sdcard" DIR_DELIM PROJECT_NAME DIR_DELIM);
+#endif
+
+
+	infostream << path_user << std::endl;
 
 	/*
 		OS X
@@ -526,6 +540,121 @@ void initializePaths()
 
 #endif // RUN_IN_PLACE
 }
+
+#ifdef ANDROID
+std::string path_storage = DIR_DELIM "sdcard" DIR_DELIM;
+
+
+// http://stackoverflow.com/questions/5864790/how-to-show-the-soft-keyboard-on-native-activity
+void displayKeyboard(bool pShow, android_app* mApplication, JNIEnv* lJNIEnv) {
+    jint lFlags = 0;
+
+    // Retrieves NativeActivity.
+    jobject lNativeActivity = mApplication->activity->clazz;
+    jclass ClassNativeActivity = lJNIEnv->GetObjectClass(lNativeActivity);
+
+    // Retrieves Context.INPUT_METHOD_SERVICE.
+    jclass ClassContext = lJNIEnv->FindClass("android/content/Context");
+    jfieldID FieldINPUT_METHOD_SERVICE = lJNIEnv->GetStaticFieldID(ClassContext, "INPUT_METHOD_SERVICE", "Ljava/lang/String;");
+    jobject INPUT_METHOD_SERVICE = lJNIEnv->GetStaticObjectField(ClassContext, FieldINPUT_METHOD_SERVICE);
+    //jniCheck(INPUT_METHOD_SERVICE);
+
+    // Runs getSystemService(Context.INPUT_METHOD_SERVICE).
+    jclass ClassInputMethodManager = lJNIEnv->FindClass("android/view/inputmethod/InputMethodManager");
+    jmethodID MethodGetSystemService = lJNIEnv->GetMethodID(ClassNativeActivity, "getSystemService","(Ljava/lang/String;)Ljava/lang/Object;");
+    jobject lInputMethodManager = lJNIEnv->CallObjectMethod(lNativeActivity, MethodGetSystemService,INPUT_METHOD_SERVICE);
+
+    // Runs getWindow().getDecorView().
+    jmethodID MethodGetWindow = lJNIEnv->GetMethodID(ClassNativeActivity, "getWindow","()Landroid/view/Window;");
+    jobject lWindow = lJNIEnv->CallObjectMethod(lNativeActivity,MethodGetWindow);
+    jclass ClassWindow = lJNIEnv->FindClass("android/view/Window");
+    jmethodID MethodGetDecorView = lJNIEnv->GetMethodID(ClassWindow, "getDecorView", "()Landroid/view/View;");
+    jobject lDecorView = lJNIEnv->CallObjectMethod(lWindow,MethodGetDecorView);
+
+    if (pShow) {
+        // Runs lInputMethodManager.showSoftInput(...).
+        jmethodID MethodShowSoftInput = lJNIEnv->GetMethodID(ClassInputMethodManager, "showSoftInput","(Landroid/view/View;I)Z");
+        jboolean lResult = lJNIEnv->CallBooleanMethod(lInputMethodManager, MethodShowSoftInput,lDecorView, lFlags);
+    } else {
+        // Runs lWindow.getViewToken()
+        jclass ClassView = lJNIEnv->FindClass("android/view/View");
+        jmethodID MethodGetWindowToken = lJNIEnv->GetMethodID(ClassView, "getWindowToken", "()Landroid/os/IBinder;");
+        jobject lBinder = lJNIEnv->CallObjectMethod(lDecorView,MethodGetWindowToken);
+
+        // lInputMethodManager.hideSoftInput(...).
+        jmethodID MethodHideSoftInput = lJNIEnv->GetMethodID(ClassInputMethodManager, "hideSoftInputFromWindow","(Landroid/os/IBinder;I)Z");
+        jboolean lRes = lJNIEnv->CallBooleanMethod(lInputMethodManager, MethodHideSoftInput,lBinder, lFlags);
+    }
+}
+
+android_app* app_global;
+JNIEnv* jnienv;
+
+void setExternalStorageDir(JNIEnv* lJNIEnv) {
+
+	// Android: Retrieve ablsolute path to external storage device (sdcard)
+	jclass ClassEnv = lJNIEnv->FindClass("android/os/Environment");
+	jmethodID MethodDir = lJNIEnv->GetStaticMethodID(ClassEnv, "getExternalStorageDirectory","()Ljava/io/File;");
+	jobject ObjectFile = lJNIEnv->CallStaticObjectMethod(ClassEnv, MethodDir);
+	jclass ClassFile = lJNIEnv->FindClass("java/io/File");
+
+	jmethodID MethodPath = lJNIEnv->GetMethodID(ClassFile, "getAbsolutePath", "()Ljava/lang/String;");
+	jstring StringPath = (jstring)lJNIEnv->CallObjectMethod(ObjectFile, MethodPath);
+
+	const char *externalPath = lJNIEnv->GetStringUTFChars(StringPath, NULL);
+	std::string userPath(externalPath);
+	lJNIEnv->ReleaseStringUTFChars(StringPath, externalPath);
+
+	path_storage = userPath;
+	path_user = userPath + DIR_DELIM + PROJECT_NAME;
+	path_share = userPath + DIR_DELIM + PROJECT_NAME;
+}
+
+void copyAssetDirectory(AAssetManager* Mgr, std::string path) {
+
+	// Android: Copy asset directory to user path
+	AAssetDir* AssetDir = AAssetManager_openDir(Mgr, (const char*)path.c_str());
+	const char* filename = (const char*)NULL;
+	while ((filename = AAssetDir_getNextFileName(AssetDir)) != NULL) {
+		std::string fn = path + DIR_DELIM + std::string(filename);
+		AAsset* Asset = AAssetManager_open(Mgr, fn.c_str(), AASSET_MODE_BUFFER);
+		char buffer[BUFSIZ];
+		int bytes = 0;
+		fn = path_storage + DIR_DELIM + fn;
+		FILE* output = fopen(fn.c_str(), "w");
+		while ((bytes = AAsset_read(Asset, buffer, BUFSIZ)) > 0)
+			fwrite(buffer, bytes, 1, output);
+		fclose(output);
+		AAsset_close(Asset);
+	}
+	AAssetDir_close(AssetDir);
+}
+
+void extractAssets(android_app* mApplication) {
+
+	// Android: Extract minetest resource files
+	AAssetManager* Mgr = mApplication->activity->assetManager;
+	AAssetDir* AssetDir = AAssetManager_openDir(Mgr, "");
+	AAsset* Asset = AAssetManager_open(Mgr, "index.txt", AASSET_MODE_UNKNOWN);
+
+	long size = AAsset_getLength(Asset);
+	char* buffer = (char*)malloc (sizeof(char) * size);
+
+	AAsset_read(Asset, buffer, size);
+	AAsset_close(Asset);
+	AAssetDir_close(AssetDir);
+
+	char* dir = strtok(buffer, "\n");
+	while (dir != NULL)	{
+		std::string path = std::string(dir);
+		fs::CreateDir(path_storage + "/" + path);
+		copyAssetDirectory(Mgr, path);
+		dir = strtok(NULL, "\n");
+	}
+	free (buffer);
+}
+
+#endif
 
 } //namespace porting
 

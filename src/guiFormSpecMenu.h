@@ -362,6 +362,9 @@ private:
 		s32 time;
 	};
 	clickpos m_doubleclickdetect[2];
+#ifdef ANDROID
+	v2s32 m_down_pos;
+#endif
 };
 
 class FormspecFormSource: public IFormSource
