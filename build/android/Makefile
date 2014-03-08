@@ -4,7 +4,7 @@
 PARALLEL = -j4
 
 # compile with GPROF
-GPROF = 1
+# GPROF = 1
 
 # paths used for timestaps, dependencys, tree config and libs
 PATHCFGFILE = path.cfg
