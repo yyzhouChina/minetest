@@ -215,6 +215,9 @@ assets : $(ASSETS_TIMESTAMP)
 	if [ ${ASSETS_TIMESTAMP} -nt ${ASSETS_TIMESTAMP}.old ] ; then              \
 		REFRESH=1;                                                             \
 	fi;                                                                        \
+	if [ ! -d ${ROOT}/assets ] ; then                                          \
+		REFRESH=1;                                                             \
+	fi;                                                                        \
 	if [ $$REFRESH -ne 0 ] ; then                                              \
 	echo "assets changed, refreshing...";                                      \
 	make clean_assets;                                                         \
