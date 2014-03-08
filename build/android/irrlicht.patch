@@ -1,0 +1,222 @@
+--- irrlicht/include/IEventReceiver.h	2014-03-08 19:10:00.459753209 +0100
++++ irrlicht.patched/include/IEventReceiver.h	2014-03-08 19:04:22.163745183 +0100
+@@ -370,7 +370,11 @@
+         
+         // Y position of simple touch.
+ 		s32 Y;
+-
++		
++	
++	// number of current touches
++	s32 touchedCount;
++		
+ 		//! Type of touch event.
+ 		ETOUCH_INPUT_EVENT Event;
+ 	};
+--- irrlicht/source/Irrlicht/Android/CIrrDeviceAndroid.cpp	2014-03-08 19:09:49.679752952 +0100
++++ irrlicht.patched/source/Irrlicht/Android/CIrrDeviceAndroid.cpp	2014-03-08 19:06:35.279748341 +0100
+@@ -310,6 +310,7 @@
+ 					Event.TouchInput.ID = AMotionEvent_getPointerId(androidEvent, i);
+ 					Event.TouchInput.X = AMotionEvent_getX(androidEvent, i);
+ 					Event.TouchInput.Y = AMotionEvent_getY(androidEvent, i);
++					Event.TouchInput.touchedCount = AMotionEvent_getPointerCount(androidEvent);
+ 
+ 					device->postEventFromUser(Event);
+ 				}
+@@ -321,6 +322,7 @@
+ 				Event.TouchInput.ID = AMotionEvent_getPointerId(androidEvent, PointerIndex);
+ 				Event.TouchInput.X = AMotionEvent_getX(androidEvent, PointerIndex);
+ 				Event.TouchInput.Y = AMotionEvent_getY(androidEvent, PointerIndex);
++				Event.TouchInput.touchedCount = AMotionEvent_getPointerCount(androidEvent);
+ 
+ 				device->postEventFromUser(Event);
+ 			}
+@@ -328,6 +330,188 @@
+ 			Status = 1;
+ 		}
+ 	}
++	
++	if( AInputEvent_getType( androidEvent ) == AINPUT_EVENT_TYPE_KEY )
++	{
++		SEvent irrEvent;
++		irrEvent.EventType = EET_KEY_INPUT_EVENT;
++		s32 action = AKeyEvent_getAction(androidEvent);
++		s32 meta = AKeyEvent_getMetaState(androidEvent);
++		irrEvent.KeyInput.Char = 0;
++		irrEvent.KeyInput.Control = false;//TODO: Control
++		irrEvent.KeyInput.Shift = (meta & AMETA_SHIFT_ON)!=0;
++		irrEvent.KeyInput.PressedDown = (action==AKEY_EVENT_ACTION_DOWN);//AKEY_EVENT_ACTION_UP
++		s32 key = AKeyEvent_getKeyCode(androidEvent);
++		if(key==AKEYCODE_HOME){
++			irrEvent.KeyInput.Key = KEY_HOME;
++		}else if(key==AKEYCODE_BACK){//the back button will not exit the app anymore, KEY_CANCEL makes sense to me
++			irrEvent.KeyInput.Key = KEY_CANCEL;//KEY_BACK;
++		}else if(key>=AKEYCODE_0 && key<=AKEYCODE_9){
++			irrEvent.KeyInput.Key = (EKEY_CODE)(key-AKEYCODE_0+KEY_KEY_0);
++			if(!irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = (wchar_t)(key-AKEYCODE_0)+L'0';
++			}else{
++				if(key == AKEYCODE_2){
++					irrEvent.KeyInput.Char = L'@';
++				}else if(key == AKEYCODE_1){
++					irrEvent.KeyInput.Char = L'!';
++				}else if(key == AKEYCODE_3){
++					irrEvent.KeyInput.Char = L'#';
++				}else if(key == AKEYCODE_4){
++					irrEvent.KeyInput.Char = L'$';
++				}else if(key == AKEYCODE_5){
++					irrEvent.KeyInput.Char = L'%';
++				}else if(key == AKEYCODE_6){
++					irrEvent.KeyInput.Char = L'^';
++				}else if(key == AKEYCODE_7){
++					irrEvent.KeyInput.Char = L'&';
++				}else if(key == AKEYCODE_8){
++					irrEvent.KeyInput.Char = L'*';
++				}else if(key == AKEYCODE_9){
++					irrEvent.KeyInput.Char = L'(';
++				}else if(key == AKEYCODE_0){
++					irrEvent.KeyInput.Char = L')';
++				}
++			}
++		}else if(key==AKEYCODE_STAR){
++			irrEvent.KeyInput.Key = KEY_KEY_8 ;//US Keyboard
++			irrEvent.KeyInput.Char = L'*';
++		}else if(key==AKEYCODE_POUND){
++			irrEvent.KeyInput.Key = KEY_KEY_3;//British Keyboard
++			irrEvent.KeyInput.Char = L'£';
++		}else if(key==AKEYCODE_DPAD_UP){
++			irrEvent.KeyInput.Key = KEY_UP;
++		}else if(key==AKEYCODE_DPAD_DOWN){
++			irrEvent.KeyInput.Key = KEY_DOWN;
++		}else if(key==AKEYCODE_DPAD_LEFT){
++			irrEvent.KeyInput.Key = KEY_LEFT;
++		}else if(key==AKEYCODE_DPAD_RIGHT){
++			irrEvent.KeyInput.Key = KEY_RIGHT;
++		}else if(key>=AKEYCODE_A && key<=AKEYCODE_Z){
++			irrEvent.KeyInput.Key = (EKEY_CODE)(key-AKEYCODE_A+KEY_KEY_A);
++			if(!irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = (wchar_t)(key-AKEYCODE_A)+L'a';
++			}else{
++				irrEvent.KeyInput.Char = (wchar_t)(key-AKEYCODE_A)+L'A';
++			}
++		}else if(key==AKEYCODE_COMMA){
++			irrEvent.KeyInput.Key = KEY_COMMA;
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'<';
++			}else{
++				irrEvent.KeyInput.Char = L',';
++			}
++		}else if(key==AKEYCODE_PERIOD){
++			irrEvent.KeyInput.Key = KEY_PERIOD;
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'>';
++			}else{
++				irrEvent.KeyInput.Char = L'.';
++			}
++		}else if(key==AKEYCODE_ALT_LEFT){
++			irrEvent.KeyInput.Key = KEY_LMENU;
++		}else if(key==AKEYCODE_ALT_RIGHT){
++			irrEvent.KeyInput.Key = KEY_RMENU;
++		}else if(key==AKEYCODE_SHIFT_LEFT){
++			irrEvent.KeyInput.Key = KEY_LSHIFT;
++		}else if(key==AKEYCODE_SHIFT_RIGHT){
++			irrEvent.KeyInput.Key = KEY_RSHIFT;
++		}else if(key==AKEYCODE_TAB){
++			irrEvent.KeyInput.Key = KEY_TAB;
++			irrEvent.KeyInput.Char = L'\t';
++		}else if(key==AKEYCODE_SPACE){
++			irrEvent.KeyInput.Key = KEY_SPACE;
++			irrEvent.KeyInput.Char = L' ';
++		}else if(key==AKEYCODE_ENTER){
++			irrEvent.KeyInput.Key = KEY_RETURN;
++			irrEvent.KeyInput.Char = L'\n';
++		}else if(key==AKEYCODE_DEL){
++			irrEvent.KeyInput.Key = KEY_BACK;
++		}else if(key==AKEYCODE_MINUS){
++			irrEvent.KeyInput.Key = KEY_MINUS;
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'_';
++			}else{
++				irrEvent.KeyInput.Char = L'-';
++			}
++		}else if(key==AKEYCODE_EQUALS){
++			irrEvent.KeyInput.Key = KEY_PLUS;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'+';
++			}else{
++				irrEvent.KeyInput.Char = L'=';
++			}
++		}else if(key==AKEYCODE_LEFT_BRACKET){
++			irrEvent.KeyInput.Key = KEY_OEM_4;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'{';
++			}else{
++				irrEvent.KeyInput.Char = L'[';
++			}
++		}else if(key==AKEYCODE_RIGHT_BRACKET){
++			irrEvent.KeyInput.Key = KEY_OEM_6;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'}';
++			}else{
++				irrEvent.KeyInput.Char = L']';
++			}
++		}else if(key==AKEYCODE_BACKSLASH){
++			irrEvent.KeyInput.Key = KEY_OEM_5;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'|';
++			}else{
++				irrEvent.KeyInput.Char = L'\\';
++			}
++		}else if(key==AKEYCODE_SEMICOLON){
++			irrEvent.KeyInput.Key = KEY_OEM_1;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L':';
++			}else{
++				irrEvent.KeyInput.Char = L';';
++			}
++		}else if(key==AKEYCODE_APOSTROPHE){
++			irrEvent.KeyInput.Key = KEY_OEM_7;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'\"';
++			}else{
++				irrEvent.KeyInput.Char = L'\'';
++			}
++		}else if(key==AKEYCODE_SLASH){
++			irrEvent.KeyInput.Key = KEY_OEM_2;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'?';
++			}else{
++				irrEvent.KeyInput.Char = L'/';
++			}
++		}else if(key==AKEYCODE_AT){
++			irrEvent.KeyInput.Key = KEY_KEY_2;//US Keyboard
++			irrEvent.KeyInput.Char = L'@';
++		}else if(key==AKEYCODE_PLUS){
++			irrEvent.KeyInput.Key = KEY_PLUS;
++			irrEvent.KeyInput.Char = L'+';
++		}else if(key==AKEYCODE_MENU){//Menubutton of the unhidable toolbar
++			irrEvent.KeyInput.Key = KEY_MENU;
++		}else if(key==AKEYCODE_MEDIA_PLAY_PAUSE){
++			irrEvent.KeyInput.Key = KEY_PLAY;//hmmm
++		}else if(key==AKEYCODE_PAGE_UP){
++			irrEvent.KeyInput.Key = KEY_PRIOR;
++		}else if(key==AKEYCODE_PAGE_DOWN){
++			irrEvent.KeyInput.Key = KEY_NEXT;
++		}else if(key==AKEYCODE_GRAVE){
++			irrEvent.KeyInput.Key = KEY_OEM_3;//US Keyboard
++			if(irrEvent.KeyInput.Shift){
++				irrEvent.KeyInput.Char = L'~';
++			}else{
++				irrEvent.KeyInput.Char = L'`';
++			}
++		}else{
++			//__android_log_print(ANDROID_LOG_ERROR, "Unhandled Key", "Code: %i Shift: %i\n", key, (int)irrEvent.KeyInput.Shift);
++			return 0;
++		}
++
++		device->postEventFromUser(irrEvent);
++		Status = 1;
++		}
+ 
+ 	return Status;
+ }
