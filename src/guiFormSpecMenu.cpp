@@ -2284,7 +2284,7 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 	if(event.EventType==EET_KEY_INPUT_EVENT)
 	{
 		KeyPress kp(event.KeyInput);
-#ifdef ANDROID
+#ifdef __ANDROID__
 		if (event.KeyInput.Key == KEY_RETURN) {
 			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
 		}
@@ -2332,7 +2332,7 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 		}
 	}
 
-	#ifdef ANDROID
+	#ifdef __ANDROID__
 	// display software keyboard when clicking edit boxes
 	if (event.EventType == EET_MOUSE_INPUT_EVENT
 			&& event.MouseInput.Event == EMIE_LMOUSE_PRESSED_DOWN) {

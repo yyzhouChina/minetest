@@ -29,7 +29,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../hex.h"
 #include "../porting.h"
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 const wchar_t* wide_chars = L" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
 int wctomb(char *s, wchar_t wc)
@@ -86,7 +86,7 @@ std::wstring narrow_to_wide(const std::string& mbs)
 
 #endif
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 std::string wide_to_narrow(const std::wstring& wcs) {
 	size_t mbl = wcs.size()*4;
 

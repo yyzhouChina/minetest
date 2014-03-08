@@ -362,7 +362,7 @@ private:
 		s32 time;
 	};
 	clickpos m_doubleclickdetect[2];
-#ifdef ANDROID
+#ifdef __ANDROID__
 	v2s32 m_down_pos;
 #endif
 };

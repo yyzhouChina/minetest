@@ -116,7 +116,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #define PADDING(x, y) ((ALIGNOF(y) - ((uintptr_t)(x) & (ALIGNOF(y) - 1))) & (ALIGNOF(y) - 1))
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 	#include <jni.h>
 	#include <android_native_app_glue.h>
 #endif
@@ -292,7 +292,7 @@ inline void setThreadName(const char* name) {
 }
 #endif
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 
 void displayKeyboard(bool pShow, android_app* mApplication, JNIEnv* lJNIEnv);
 void setExternalStorageDir(JNIEnv* lJNIEnv);

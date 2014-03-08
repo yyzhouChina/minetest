@@ -35,7 +35,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 /******************************************************************************/
 /* Typedefs and macros                                                        */
 /******************************************************************************/
-#ifdef ANDROID
+#ifdef __ANDROID__
 #define MAINMENU_NUMBER_OF_ASYNC_THREADS                   1
 #else
 #define MAINMENU_NUMBER_OF_ASYNC_THREADS                   4

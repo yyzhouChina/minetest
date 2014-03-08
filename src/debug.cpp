@@ -96,7 +96,7 @@ public:
 	}
 	std::streamsize xsputn(const char *s, std::streamsize n)
 	{
-#ifdef ANDROID
+#ifdef __ANDROID__
 		__android_log_print(porting::ANDROID_LOG_VERBOSE, PROJECT_NAME, "%s", s);
 #endif
 		for(int i=0; i<DEBUGSTREAM_COUNT; i++)

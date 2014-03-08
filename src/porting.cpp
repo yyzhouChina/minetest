@@ -473,7 +473,7 @@ void initializePaths()
 	trylist.push_back(
 			bindir + DIR_DELIM + ".." + DIR_DELIM + "share" + DIR_DELIM + PROJECT_NAME);
 	trylist.push_back(bindir + DIR_DELIM + "..");
-#ifdef ANDROID
+#ifdef __ANDROID__
 	trylist.push_back(DIR_DELIM "sdcard" DIR_DELIM PROJECT_NAME);
 #endif
 
@@ -497,7 +497,7 @@ void initializePaths()
 
 	infostream << "something something " PROJECT_NAME << std::endl;
 
-#ifndef ANDROID
+#ifndef __ANDROID__
 	path_user = std::string(getenv("HOME")) + DIR_DELIM + "." + PROJECT_NAME;
 #else
 	path_user = std::string(DIR_DELIM "sdcard" DIR_DELIM PROJECT_NAME DIR_DELIM);
@@ -541,7 +541,7 @@ void initializePaths()
 #endif // RUN_IN_PLACE
 }
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 std::string path_storage = DIR_DELIM "sdcard" DIR_DELIM;
 
 

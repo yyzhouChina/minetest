@@ -904,7 +904,7 @@ int main(int argc, char *argv[])
 
 	porting::initializePaths();
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 	porting::jnienv = NULL;
 	JavaVM *jvm = porting::app_global->activity->vm;
 	JavaVMAttachArgs lJavaVMAttachArgs;
@@ -1486,7 +1486,7 @@ int main(int argc, char *argv[])
 	params.Vsync         = vsync;
 	params.EventReceiver = receiver;
 	params.HighPrecisionFPU = g_settings->getBool("high_precision_fpu");
-#ifdef ANDROID
+#ifdef __ANDROID__
 	params.PrivateData = porting::app_global;
 #endif
 
@@ -1953,7 +1953,7 @@ int main(int argc, char *argv[])
 	return retval;
 }
 
-#ifdef ANDROID
+#ifdef __ANDROID__
 void android_main(android_app *app) {
 
 	porting::app_global = app;

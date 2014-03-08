@@ -23,7 +23,6 @@ GPROF_DEF=-DGPROF
 endif
 
 LOCAL_CFLAGS := -D_IRR_ANDROID_PLATFORM_ \
-				-DANDROID                \
 				-DHAVE_TOUCHSCREENGUI    \
 				-DUSE_LEVELDB            \
 				$(GPROF_DEF)             \
