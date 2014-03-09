@@ -24,7 +24,7 @@ public class MtNativeActivity extends NativeActivity {
 	
 	
 	public void showDialog(String caption, String text, String acceptButton, 
-			String cancelButton, String hint, String current) {
+			String cancelButton, String hint, String current, int editType) {
 		
 		Intent intent = new Intent(this, MinetestTextEntry.class);
 		Bundle params = new Bundle();
@@ -34,6 +34,7 @@ public class MtNativeActivity extends NativeActivity {
 		params.putString("cancelButton",cancelButton);
 		params.putString("hint",hint);
 		params.putString("current", current);
+		params.putInt("editType", editType);
 		intent.putExtras(params);
 		startActivityForResult(intent,101);
 		m_MessageReturnValue = "";
@@ -67,10 +68,6 @@ public class MtNativeActivity extends NativeActivity {
 				m_MessagReturnCode = 1;
 			}
 		}
-	}
-	
-	public static void showMessageStatic() {
-		Log.w("MtNativeActivity", "showMessageStatic() called");
 	}
 	
 	private int m_MessagReturnCode;

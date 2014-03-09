@@ -302,7 +302,7 @@ void extractAssets(android_app* mApplication);
 void showInputDialog(const std::string& caption,
 		const std::string& message,const std::string& acceptButton,
 		const std::string& cancelButton,const  std::string& hint,
-		const std::string& current);
+		const std::string& current, int editType);
 void initAndroid();
 
 int getInputDialogState();

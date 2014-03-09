@@ -696,11 +696,11 @@ namespace porting
 void showInputDialog(const std::string& caption,
 		const std::string& message,const std::string& acceptButton,
 		const std::string& cancelButton,const  std::string& hint,
-		const std::string& current)
+		const std::string& current, int editType)
 {
 	jmethodID showdialog = jnienv->GetMethodID(nativeActivity,"showDialog",
 		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
 
 	if (showdialog == 0) {
 		assert("porting::showInputDialog unable to find java show dialog method" == 0);
@@ -712,9 +712,10 @@ void showInputDialog(const std::string& caption,
 	jstring jcancelButton = jnienv->NewStringUTF(cancelButton.c_str());
 	jstring jhint         = jnienv->NewStringUTF(hint.c_str());
 	jstring jcurrent      = jnienv->NewStringUTF(current.c_str());
+	jint    jeditType     = editType;
 
-	jnienv->CallVoidMethod(app_global->activity->clazz,showdialog,jcaption,jmessage,
-			jacceptButton,jcancelButton,jhint,jcurrent);
+	jnienv->CallVoidMethod(app_global->activity->clazz, showdialog, jcaption,
+			jmessage, jacceptButton, jcancelButton, jhint, jcurrent, jeditType);
 }
 
 int getInputDialogState() {

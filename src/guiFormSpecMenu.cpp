@@ -2399,9 +2399,24 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 				label = "text";
 			}
 			message += gettext(label) + ":";
+
+			/* single line text input */
+			int type = 2;
+
+			/* multi line text input */
+			if (((gui::IGUIEditBox*) hovered)->isMultiLineEnabled()) {
+				type = 1;
+			}
+
+			/* passwords are always single line */
+			if (((gui::IGUIEditBox*) hovered)->isPasswordBox()) {
+				type = 3;
+			}
+
 			porting::showInputDialog("Minetest", message, gettext("ok"),
 					gettext("cancel"), "",
-					wide_to_narrow(((gui::IGUIEditBox*) hovered)->getText()));
+					wide_to_narrow(((gui::IGUIEditBox*) hovered)->getText()),
+					type);
 			return retval;
 		}
 	}
