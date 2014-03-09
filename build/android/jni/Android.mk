@@ -14,7 +14,7 @@ include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := Minetest
+LOCAL_MODULE := minetest
 
 LOCAL_CPP_FEATURES += exceptions
 

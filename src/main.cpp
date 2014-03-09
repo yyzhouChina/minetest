@@ -905,13 +905,7 @@ int main(int argc, char *argv[])
 	porting::initializePaths();
 
 #ifdef __ANDROID__
-	porting::jnienv = NULL;
-	JavaVM *jvm = porting::app_global->activity->vm;
-	JavaVMAttachArgs lJavaVMAttachArgs;
-	lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-	lJavaVMAttachArgs.name = "NativeThread";
-	lJavaVMAttachArgs.group = NULL;
-	jvm->AttachCurrentThread(&porting::jnienv, &lJavaVMAttachArgs);
+	porting::initAndroid();
 
 	porting::setExternalStorageDir(porting::jnienv);
 	if (!fs::PathExists(porting::path_user)) {

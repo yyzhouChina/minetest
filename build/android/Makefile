@@ -23,6 +23,8 @@ IRRLICHT_LIB = $(IRRLICHT_DIR)lib/Android/libIrrlicht.a
 IRRLICHT_TIMESTAMP = $(IRRLICHT_DIR)timestamp
 IRRLICHT_TIMESTAMP_INT = $(ROOT)/deps/irrlicht_timestamp
 
+OGLES2_SHADER_PATH=\"/sdcard/Minetest/media/Shaders/\"
+
 -include $(PATHCFGFILE)
 
 .PHONY : debug release reconfig delconfig \
@@ -108,9 +110,9 @@ $(LEVELDB_LIB): $(LEVELDB_TIMESTAMP)
 	export CC=arm-linux-androideabi-gcc;                                       \
 	export CXX=arm-linux-androideabi-g++;                                      \
 	export TARGET_OS=OS_ANDROID_CROSSCOMPILE;                                  \
-	make -s ${PARALLEL};                                                       \
-	touch ${LEVELDB_TIMESTAMP};                                        \
-	touch ${LEVELDB_TIMESTAMP_INT};                                    \
+	make -s ${PARALLEL} || exit 1;                                             \
+	touch ${LEVELDB_TIMESTAMP};                                                \
+	touch ${LEVELDB_TIMESTAMP_INT};                                            \
 	else                                                                       \
 		echo "nothing to be done for leveldb";                                 \
 	fi
@@ -151,7 +153,8 @@ $(IRRLICHT_LIB): $(IRRLICHT_TIMESTAMP)
 	export PATH=$$PATH:${SDKFOLDER}/platform-tools:${ANDROID_NDK};             \
 	echo "changed timestamp for irrlicht detected building...";                \
 	cd deps/irrlicht/source/Irrlicht/Android;                                  \
-	ndk-build NDEBUD=${NDEBUG} NDK_MODULE_PATH=${NDK_MODULE_PATH} ${PARALLEL}; \
+	ndk-build NDEBUD=${NDEBUG} NDK_MODULE_PATH=${NDK_MODULE_PATH} ${PARALLEL}  \
+	IRR_OGLES2_SHADER_PATH=${OGLES2_SHADER_PATH} || exit 1;                    \
 	touch ${IRRLICHT_TIMESTAMP};                                               \
 	touch ${IRRLICHT_TIMESTAMP_INT};                                           \
 	else                                                                       \
@@ -163,37 +166,50 @@ clean_irrlicht :
 
 $(ASSETS_TIMESTAMP) :
 	@mkdir -p ${ROOT}/deps;                                                     \
-	if [ $$(ls -Art ${ROOT}/../../builtin | tail -n 1) != "timestamp" ] ; then\
+	LAST_MODIF=$$(find ${ROOT}/../../builtin -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../builtin/timestamp;                                 \
 		touch ${ASSETS_TIMESTAMP};                                             \
 		echo builtin changed;                                                  \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../client | tail -n 1) != "timestamp" ] ; then  \
+	LAST_MODIF=$$(find ${ROOT}/../../client -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../client/timestamp;                                  \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../doc | tail -n 1) != "timestamp" ] ; then     \
+	LAST_MODIF=$$(find ${ROOT}/../../doc -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../doc/timestamp;                                     \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../fonts | tail -n 1) != "timestamp" ] ; then   \
+	LAST_MODIF=$$(find ${ROOT}/../../fonts -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../fonts/timestamp;                                   \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../games | tail -n 1) != "timestamp" ] ; then   \
+	LAST_MODIF=$$(find ${ROOT}/../../games -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../games/timestamp;                                   \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../mods | tail -n 1) != "timestamp" ] ; then    \
+	LAST_MODIF=$$(find ${ROOT}/../../mods -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../mods/timestamp;                                    \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../po | tail -n 1) != "timestamp" ] ; then      \
+	LAST_MODIF=$$(find ${ROOT}/../../po -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../po/timestamp;                                      \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
-	if [ $$(ls -Art ${ROOT}/../../textures | tail -n 1) != "timestamp" ] ; then\
+	LAST_MODIF=$$(find ${ROOT}/../../textures -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
 		touch ${ROOT}/../../textures/timestamp;                                \
+		touch ${ASSETS_TIMESTAMP};                                             \
+	fi;                                                                        \
+	LAST_MODIF=$$(find ${IRRLICHT_DIR}/media -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$LAST_MODIF != "timestamp" ] ; then                                  \
+		touch ${IRRLICHT_DIR}/media/timestamp;                                 \
 		touch ${ASSETS_TIMESTAMP};                                             \
 	fi;                                                                        \
 	if [ ${ROOT}/../../minetest.conf.example -nt ${ASSETS_TIMESTAMP} ] ; then  \
@@ -232,7 +248,10 @@ assets : $(ASSETS_TIMESTAMP)
 	cp -r ${ROOT}/../../mods ${ROOT}/assets/Minetest;                          \
 	cp -r ${ROOT}/../../po ${ROOT}/assets/Minetest;                            \
 	cp -r ${ROOT}/../../textures ${ROOT}/assets/Minetest;                      \
+	mkdir -p ${ROOT}/assets/Minetest/media;                                    \
+	cp -r ${IRRLICHT_DIR}/media/Shaders ${ROOT}/assets/Minetest/media;         \
 	cd ${ROOT}/assets;                                                         \
+	touch Minetest/.nomedia;                                                   \
 	find . -name "timestamp" -exec rm {} \; ;                                  \
 	ls -R | grep ":$$" | sed -e 's/:$$//' -e 's/\.//' -e 's/^\///' > "index.txt"; \
 	cp ${ROOT}/${ASSETS_TIMESTAMP} ${ROOT}/${ASSETS_TIMESTAMP}.old;            \
@@ -269,7 +288,9 @@ prep_srcdir :
 	
 clean_apk :
 	@export PATH=$$PATH:${SDKFOLDER}platform-tools:${ANDROID_NDK};             \
-	ndk-build clean
+	export ANDROID_HOME=${SDKFOLDER};                                          \
+	ndk-build clean;                                                           \
+	ant clean
 	
 install_debug : 
 	@export PATH=$$PATH:${SDKFOLDER}platform-tools:${ANDROID_NDK};             \
@@ -280,7 +301,8 @@ install :
 	adb install -r ${ROOT}/bin/Minetest.apk
 	
 envpaths :
-	@echo "export PATH=$$PATH:${SDKFOLDER}platform-tools:${ANDROID_NDK}" > and_env;
+	@echo "export PATH=$$PATH:${SDKFOLDER}platform-tools:${ANDROID_NDK}" > and_env;\
+	echo "export ANDROID_HOME=${SDKFOLDER}" >> and_env;
 	
 clean_all : 
 	make clean_apk;                                                            \

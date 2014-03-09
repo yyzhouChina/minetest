@@ -299,6 +299,15 @@ void setExternalStorageDir(JNIEnv* lJNIEnv);
 void copyAssetDirectory(AAssetManager* Mgr, std::string path);
 void extractAssets(android_app* mApplication);
 
+void showInputDialog(const std::string& caption,
+		const std::string& message,const std::string& acceptButton,
+		const std::string& cancelButton,const  std::string& hint,
+		const std::string& current);
+void initAndroid();
+
+int getInputDialogState();
+std::string getInputDialogValue();
+
 #include <android_native_app_glue.h>
 #include <android/log.h>
 

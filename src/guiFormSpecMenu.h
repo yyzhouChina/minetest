@@ -357,6 +357,9 @@ private:
 
 	bool DoubleClickDetection(const SEvent event);
 
+	std::wstring getLabelByID(s32 id);
+	std::wstring getNameByID(s32 id);
+
 	struct clickpos {
 		v2s32 pos;
 		s32 time;
@@ -364,6 +367,9 @@ private:
 	clickpos m_doubleclickdetect[2];
 #ifdef __ANDROID__
 	v2s32 m_down_pos;
+	std::wstring m_JavaDialogFieldName;
+
+	bool getAndroidUIInput();
 #endif
 };
 

@@ -81,6 +81,9 @@ GUIFormSpecMenu::GUIFormSpecMenu(irr::IrrlichtDevice* dev,
 	m_tooltip_element(NULL),
 	m_allowclose(true),
 	m_lock(false)
+#ifdef __ANDROID__
+	,m_JavaDialogFieldName(L"")
+#endif
 {
 	current_keys_pending.key_down = false;
 	current_keys_pending.key_up = false;
@@ -1700,6 +1703,52 @@ void GUIFormSpecMenu::regenerateGui(v2u32 screensize)
 		setInitialFocus();
 }
 
+#ifdef __ANDROID__
+bool GUIFormSpecMenu::getAndroidUIInput() {
+
+	/* no dialog shown */
+	if (m_JavaDialogFieldName == L"") {
+		return false;
+	}
+
+	/* still waiting */
+	if (porting::getInputDialogState() == -1) {
+		return true;
+	}
+
+	std::wstring fieldname = m_JavaDialogFieldName;
+	m_JavaDialogFieldName = L"";
+
+	/* no value abort dialog processing */
+	if (porting::getInputDialogState() != 0) {
+		return false;
+	}
+
+	for(std::vector<FieldSpec>::iterator iter =  m_fields.begin();
+			iter != m_fields.end(); iter++) {
+		if (iter->fname != fieldname) {
+			continue;
+		}
+		IGUIElement* tochange = getElementFromId(iter->fid);
+
+		if (tochange == 0) {
+			return false;
+		}
+
+		if (tochange->getType() != irr::gui::EGUIET_EDIT_BOX) {
+			return false;
+		}
+
+		std::string text = porting::getInputDialogValue();
+
+		((gui::IGUIEditBox*) tochange)->
+			setText(narrow_to_wide(text).c_str());
+	}
+
+	return false;
+}
+#endif
+
 GUIFormSpecMenu::ItemSpec GUIFormSpecMenu::getItemAtPos(v2s32 p) const
 {
 	core::rect<s32> imgrect(0,0,imgsize.X,imgsize.Y);
@@ -2280,16 +2329,15 @@ void GUIFormSpecMenu::acceptInput(FormspecQuitMode quitmode=quit_mode_no)
 
 bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 {
+#ifdef __ANDROID__
+	if (getAndroidUIInput()) {
+		return true;
+	}
+#endif
 	// Fix Esc/Return key being eaten by checkboxen and tables
 	if(event.EventType==EET_KEY_INPUT_EVENT)
 	{
 		KeyPress kp(event.KeyInput);
-#ifdef __ANDROID__
-		if (event.KeyInput.Key == KEY_RETURN) {
-			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
-		}
-#endif
-
 		if (kp == EscapeKey || kp == CancelKey || kp == getKeySetting("keymap_inventory")
 				|| event.KeyInput.Key==KEY_RETURN)
 		{
@@ -2340,16 +2388,21 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 			Environment->getRootGUIElement()->getElementFromPoint(
 				core::position2d<s32>(event.MouseInput.X, event.MouseInput.Y));
 		if (hovered->getType() == irr::gui::EGUIET_EDIT_BOX) {
-			porting::displayKeyboard(true, porting::app_global, porting::jnienv);
 			bool retval = hovered->OnEvent(event);
-
 			if (retval) {
 				Environment->setFocus(hovered);
 			}
+			m_JavaDialogFieldName = getNameByID(hovered->getID());
+			std::string message   = gettext("Enter ");
+			std::string label     = wide_to_narrow(getLabelByID(hovered->getID()));
+			if (label == "") {
+				label = "text";
+			}
+			message += gettext(label) + ":";
+			porting::showInputDialog("Minetest", message, gettext("ok"),
+					gettext("cancel"), "",
+					wide_to_narrow(((gui::IGUIEditBox*) hovered)->getText()));
 			return retval;
-		}
-		else {
-			porting::displayKeyboard(false, porting::app_global, porting::jnienv);
 		}
 	}
 
@@ -2959,6 +3012,26 @@ bool GUIFormSpecMenu::OnEvent(const SEvent& event)
 	}
 
 	return Parent ? Parent->OnEvent(event) : false;
+}
+
+std::wstring GUIFormSpecMenu::getNameByID(s32 id) {
+	for(std::vector<FieldSpec>::iterator iter =  m_fields.begin();
+				iter != m_fields.end(); iter++) {
+		if (iter->fid == id) {
+			return iter->fname;
+		}
+	}
+	return L"";
+}
+
+std::wstring GUIFormSpecMenu::getLabelByID(s32 id) {
+	for(std::vector<FieldSpec>::iterator iter =  m_fields.begin();
+				iter != m_fields.end(); iter++) {
+		if (iter->fid == id) {
+			return iter->flabel;
+		}
+	}
+	return L"";
 }
 
 bool GUIFormSpecMenu::parseColor(const std::string &value, video::SColor &color,

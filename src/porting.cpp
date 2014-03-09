@@ -589,6 +589,40 @@ void displayKeyboard(bool pShow, android_app* mApplication, JNIEnv* lJNIEnv) {
 
 android_app* app_global;
 JNIEnv* jnienv;
+jclass nativeActivity;
+
+jclass findClass(std::string classname)
+{
+	if (jnienv == 0) {
+		return 0;
+	}
+
+	jclass nativeactivity = jnienv->FindClass("android/app/NativeActivity");
+	jmethodID getClassLoader = jnienv->GetMethodID(nativeactivity,"getClassLoader", "()Ljava/lang/ClassLoader;");
+	jobject cls = jnienv->CallObjectMethod(app_global->activity->clazz, getClassLoader);
+	jclass classLoader = jnienv->FindClass("java/lang/ClassLoader");
+	jmethodID findClass = jnienv->GetMethodID(classLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+	jstring strClassName = jnienv->NewStringUTF(classname.c_str());
+	return (jclass) jnienv->CallObjectMethod(cls, findClass, strClassName);
+}
+
+void initAndroid()
+{
+	porting::jnienv = NULL;
+	JavaVM *jvm = app_global->activity->vm;
+	JavaVMAttachArgs lJavaVMAttachArgs;
+	lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+//	lJavaVMAttachArgs.name = "NativeThread";
+	lJavaVMAttachArgs.group = NULL;
+	jvm->AttachCurrentThread(&jnienv, &lJavaVMAttachArgs);
+
+	nativeActivity = findClass("org/minetest/MtNativeActivity");
+	if (nativeActivity == 0) {
+		errorstream <<
+			"porting::initAndroid unable to find java native activity class" <<
+			std::endl;
+	}
+}
 
 void setExternalStorageDir(JNIEnv* lJNIEnv) {
 
@@ -654,7 +688,74 @@ void extractAssets(android_app* mApplication) {
 	free (buffer);
 }
 
+}// namespace porting
+
+namespace porting
+{
+
+void showInputDialog(const std::string& caption,
+		const std::string& message,const std::string& acceptButton,
+		const std::string& cancelButton,const  std::string& hint,
+		const std::string& current)
+{
+	jmethodID showdialog = jnienv->GetMethodID(nativeActivity,"showDialog",
+		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
+		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+
+	if (showdialog == 0) {
+		assert("porting::showInputDialog unable to find java show dialog method" == 0);
+	}
+
+	jstring jcaption      = jnienv->NewStringUTF(caption.c_str());
+	jstring jmessage      = jnienv->NewStringUTF(message.c_str());
+	jstring jacceptButton = jnienv->NewStringUTF(acceptButton.c_str());
+	jstring jcancelButton = jnienv->NewStringUTF(cancelButton.c_str());
+	jstring jhint         = jnienv->NewStringUTF(hint.c_str());
+	jstring jcurrent      = jnienv->NewStringUTF(current.c_str());
+
+	jnienv->CallVoidMethod(app_global->activity->clazz,showdialog,jcaption,jmessage,
+			jacceptButton,jcancelButton,jhint,jcurrent);
+}
+
+int getInputDialogState() {
+	jmethodID dialogstate = jnienv->GetMethodID(nativeActivity,"getDialogState",
+			"()I");
+
+	if (dialogstate == 0) {
+		assert("porting::getInputDialogState unable to find java dialog state method" == 0);
+	}
+
+	return jnienv->CallIntMethod(app_global->activity->clazz,dialogstate);
+}
+
+std::string getInputDialogValue() {
+	jmethodID dialogvalue = jnienv->GetMethodID(nativeActivity,"getDialogValue",
+			"()Ljava/lang/String;");
+
+	if (dialogvalue == 0) {
+		assert("porting::getInputDialogValue unable to find java dialog value method" == 0);
+	}
+
+	jobject result = jnienv->CallObjectMethod(app_global->activity->clazz,dialogvalue);
+
+	const char* javachars = jnienv->GetStringUTFChars((jstring) result,0);
+	std::string text(javachars);
+	jnienv->ReleaseStringUTFChars((jstring) result,javachars);
+
+	return text;
+}
+
 #endif
 
 } //namespace porting
 
+#ifdef __ANDROID__
+extern "C" {
+	JNIEXPORT void JNICALL Java_org_minetest_MtNativeActivity_putMessageBoxResult(
+			JNIEnv * env, jclass thiz, jstring text)
+	{
+		errorstream << "Java_org_minetest_MtNativeActivity_putMessageBoxResult got: "
+				<< std::string((const char*)env->GetStringChars(text,0)) << std::endl;
+	}
+}
+#endif
