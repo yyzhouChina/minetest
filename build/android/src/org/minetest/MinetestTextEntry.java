@@ -25,10 +25,7 @@ public class MinetestTextEntry extends Activity {
 		super.onCreate(savedInstanceState);
 		
 		Bundle b = getIntent().getExtras();
-		String caption      = b.getString("caption");
-		String text         = b.getString("text");
-		String acceptButton = b.getString("acceptButton");
-		String cancelButton = b.getString("cancelButton");
+		String acceptButton = b.getString("EnterButton");
 		String hint         = b.getString("hint");
 		String current      = b.getString("current");
 		int    editType     = b.getInt("editType");
@@ -37,9 +34,7 @@ public class MinetestTextEntry extends Activity {
 		mTextInputWidget = new EditText(this);
 		mTextInputWidget.setHint(hint);
 		mTextInputWidget.setText(current);
-		builder.setTitle(caption);
-		builder.setMessage(text);
-		builder.setNegativeButton(cancelButton, null);
+		mTextInputWidget.setMinWidth(300);
 		
 		builder.setView(mTextInputWidget);
 		
@@ -49,13 +44,6 @@ public class MinetestTextEntry extends Activity {
 				{ pushResult(mTextInputWidget.getText().toString()); }
 				});
 		}
-		
-		builder.setNegativeButton(cancelButton, new DialogInterface.OnClickListener() {
-			public void onClick(DialogInterface dialog, int whichButton) {
-				dialog.cancel();
-				cancelDialog();
-				}
-			});
 		
 		builder.setOnCancelListener(new DialogInterface.OnCancelListener() {
 			public void onCancel(DialogInterface dialog) {
@@ -89,10 +77,6 @@ public class MinetestTextEntry extends Activity {
 		}
 		
 		mTextInputDialog = builder.create();
-		
-		Log.w("MinetestTextEntry", "Activity created caption=\"" + caption 
-				+ "\" text=\"" + text + "\" acceptButton=\"" + acceptButton 
-				+ "\" cancelButton=\"" + cancelButton + "\" hint=\"" + hint + "\"");
 		mTextInputDialog.show();
 	}
 	

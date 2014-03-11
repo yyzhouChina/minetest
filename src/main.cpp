@@ -910,8 +910,8 @@ int main(int argc, char *argv[])
 	porting::setExternalStorageDir(porting::jnienv);
 	if (!fs::PathExists(porting::path_user)) {
 		fs::CreateDir(porting::path_user);
-		porting::extractAssets(porting::app_global);
 	}
+	porting::copyAssets();
 #else
 	// Create user data directory
 	fs::CreateDir(porting::path_user);

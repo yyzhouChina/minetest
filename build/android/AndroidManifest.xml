@@ -27,5 +27,9 @@
 		android:theme="@style/Theme.Transparent"
 		android:excludeFromRecents="true">
 	</activity>
+	<activity android:name=".MinetestAssetCopy"
+		android:theme="@style/Theme.Transparent"
+		android:excludeFromRecents="true">
+	</activity>
 	</application>
 </manifest>

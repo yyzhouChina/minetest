@@ -22,16 +22,17 @@ public class MtNativeActivity extends NativeActivity {
 	}
 	
 	
+	public void copyAssets() {
+		Intent intent = new Intent(this, MinetestAssetCopy.class);
+		startActivity(intent);
+	}
 	
-	public void showDialog(String caption, String text, String acceptButton, 
-			String cancelButton, String hint, String current, int editType) {
+	public void showDialog(String acceptButton, String hint, String current,
+			int editType) {
 		
 		Intent intent = new Intent(this, MinetestTextEntry.class);
 		Bundle params = new Bundle();
-		params.putString("caption",caption);
-		params.putString("text",text);
 		params.putString("acceptButton",acceptButton);
-		params.putString("cancelButton",cancelButton);
 		params.putString("hint",hint);
 		params.putString("current", current);
 		params.putInt("editType", editType);

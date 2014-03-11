@@ -296,13 +296,10 @@ inline void setThreadName(const char* name) {
 
 void displayKeyboard(bool pShow, android_app* mApplication, JNIEnv* lJNIEnv);
 void setExternalStorageDir(JNIEnv* lJNIEnv);
-void copyAssetDirectory(AAssetManager* Mgr, std::string path);
-void extractAssets(android_app* mApplication);
+void copyAssets();
 
-void showInputDialog(const std::string& caption,
-		const std::string& message,const std::string& acceptButton,
-		const std::string& cancelButton,const  std::string& hint,
-		const std::string& current, int editType);
+void showInputDialog(const std::string& acceptButton,
+		const  std::string& hint, const std::string& current, int editType);
 void initAndroid();
 
 int getInputDialogState();

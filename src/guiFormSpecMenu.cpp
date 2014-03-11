@@ -2413,8 +2413,7 @@ bool GUIFormSpecMenu::preprocessEvent(const SEvent& event)
 				type = 3;
 			}
 
-			porting::showInputDialog("Minetest", message, gettext("ok"),
-					gettext("cancel"), "",
+			porting::showInputDialog(gettext("ok"), "",
 					wide_to_narrow(((gui::IGUIEditBox*) hovered)->getText()),
 					type);
 			return retval;

@@ -606,6 +606,16 @@ jclass findClass(std::string classname)
 	return (jclass) jnienv->CallObjectMethod(cls, findClass, strClassName);
 }
 
+void copyAssets() {
+	jmethodID assetcopy = jnienv->GetMethodID(nativeActivity,"copyAssets","()V");
+
+	if (assetcopy == 0) {
+		assert("porting::copyAssets unable to find copy assets method" == 0);
+	}
+
+	jnienv->CallVoidMethod(app_global->activity->clazz, assetcopy);
+}
+
 void initAndroid()
 {
 	porting::jnienv = NULL;
@@ -644,78 +654,28 @@ void setExternalStorageDir(JNIEnv* lJNIEnv) {
 	path_share = userPath + DIR_DELIM + PROJECT_NAME;
 }
 
-void copyAssetDirectory(AAssetManager* Mgr, std::string path) {
-
-	// Android: Copy asset directory to user path
-	AAssetDir* AssetDir = AAssetManager_openDir(Mgr, (const char*)path.c_str());
-	const char* filename = (const char*)NULL;
-	while ((filename = AAssetDir_getNextFileName(AssetDir)) != NULL) {
-		std::string fn = path + DIR_DELIM + std::string(filename);
-		AAsset* Asset = AAssetManager_open(Mgr, fn.c_str(), AASSET_MODE_BUFFER);
-		char buffer[BUFSIZ];
-		int bytes = 0;
-		fn = path_storage + DIR_DELIM + fn;
-		FILE* output = fopen(fn.c_str(), "w");
-		while ((bytes = AAsset_read(Asset, buffer, BUFSIZ)) > 0)
-			fwrite(buffer, bytes, 1, output);
-		fclose(output);
-		AAsset_close(Asset);
-	}
-	AAssetDir_close(AssetDir);
-}
-
-void extractAssets(android_app* mApplication) {
-
-	// Android: Extract minetest resource files
-	AAssetManager* Mgr = mApplication->activity->assetManager;
-	AAssetDir* AssetDir = AAssetManager_openDir(Mgr, "");
-	AAsset* Asset = AAssetManager_open(Mgr, "index.txt", AASSET_MODE_UNKNOWN);
-
-	long size = AAsset_getLength(Asset);
-	char* buffer = (char*)malloc (sizeof(char) * size);
-
-	AAsset_read(Asset, buffer, size);
-	AAsset_close(Asset);
-	AAssetDir_close(AssetDir);
-
-	char* dir = strtok(buffer, "\n");
-	while (dir != NULL)	{
-		std::string path = std::string(dir);
-		fs::CreateDir(path_storage + "/" + path);
-		copyAssetDirectory(Mgr, path);
-		dir = strtok(NULL, "\n");
-	}
-	free (buffer);
-}
-
 }// namespace porting
 
 namespace porting
 {
 
-void showInputDialog(const std::string& caption,
-		const std::string& message,const std::string& acceptButton,
-		const std::string& cancelButton,const  std::string& hint,
+void showInputDialog(const std::string& acceptButton, const  std::string& hint,
 		const std::string& current, int editType)
 {
 	jmethodID showdialog = jnienv->GetMethodID(nativeActivity,"showDialog",
-		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-		"Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
+		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
 
 	if (showdialog == 0) {
 		assert("porting::showInputDialog unable to find java show dialog method" == 0);
 	}
 
-	jstring jcaption      = jnienv->NewStringUTF(caption.c_str());
-	jstring jmessage      = jnienv->NewStringUTF(message.c_str());
 	jstring jacceptButton = jnienv->NewStringUTF(acceptButton.c_str());
-	jstring jcancelButton = jnienv->NewStringUTF(cancelButton.c_str());
 	jstring jhint         = jnienv->NewStringUTF(hint.c_str());
 	jstring jcurrent      = jnienv->NewStringUTF(current.c_str());
 	jint    jeditType     = editType;
 
-	jnienv->CallVoidMethod(app_global->activity->clazz, showdialog, jcaption,
-			jmessage, jacceptButton, jcancelButton, jhint, jcurrent, jeditType);
+	jnienv->CallVoidMethod(app_global->activity->clazz, showdialog,
+			jacceptButton, jhint, jcurrent, jeditType);
 }
 
 int getInputDialogState() {
