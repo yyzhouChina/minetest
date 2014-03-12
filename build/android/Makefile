@@ -23,6 +23,13 @@ IRRLICHT_LIB = $(IRRLICHT_DIR)lib/Android/libIrrlicht.a
 IRRLICHT_TIMESTAMP = $(IRRLICHT_DIR)timestamp
 IRRLICHT_TIMESTAMP_INT = $(ROOT)/deps/irrlicht_timestamp
 
+CURL_VERSION = 7.35.0
+CURL_DIR = $(ROOT)/deps/curl-$(CURL_VERSION)
+CURL_LIB = $(CURL_DIR)lib/.libs/libcurl.a
+CURL_TIMESTAMP = $(CURL_DIR)timestamp
+CURL_TIMESTAMP_INT = $(ROOT)/deps/curl_timestamp
+
+
 OGLES2_SHADER_PATH=\"/sdcard/Minetest/media/Shaders/\"
 
 -include $(PATHCFGFILE)
@@ -163,6 +170,58 @@ $(IRRLICHT_LIB): $(IRRLICHT_TIMESTAMP)
 	
 clean_irrlicht :
 	$(RM) -rf deps/irrlicht
+	
+$(CURL_TIMESTAMP) : curl_download
+	@LAST_MODIF=$$(find ${CURL_DIR} -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" "); \
+	if [ $$(basename $$LAST_MODIF) != "timestamp" ] ; then                     \
+		touch ${CURL_TIMESTAMP};                                               \
+	fi
+
+curl_download :
+	@if [ ! -d "deps/curl-${CURL_VERSION}" ] ; then                            \
+		echo "curl sources missing, downloading...";                           \
+		cd deps;                                                               \
+		wget http://curl.haxx.se/download/curl-${CURL_VERSION}.tar.bz2 || exit 1;\
+		tar -xjf curl-${CURL_VERSION}.tar.bz2 || exit 1;                       \
+	fi
+
+curl : $(CURL_LIB)
+
+$(CURL_LIB): $(CURL_TIMESTAMP)
+	@REFRESH=0;                                                                \
+	if [ ! -e ${CURL_TIMESTAMP_INT} ] ; then                                   \
+		REFRESH=1;                                                             \
+	fi;                                                                        \
+	if [ ! -e ${CURL_LIB} ] ; then                                             \
+		REFRESH=1;                                                             \
+	fi;                                                                        \
+	if [ ${CURL_TIMESTAMP} -nt ${CURL_TIMESTAMP_INT} ] ; then                  \
+		REFRESH=1;                                                             \
+	fi;                                                                        \
+	if [ $$REFRESH -ne 0 ] ; then                                              \
+	mkdir -p ${CURL_DIR};                                                      \
+	export PATH=$$PATH:${SDKFOLDER}/platform-tools:${ANDROID_NDK};             \
+	echo "changed timestamp for curl detected building...";                    \
+	cd deps/curl-${CURL_VERSION};                                              \
+	export CROSS_PREFIX=arm-linux-androideabi-;                                \
+	export TOOLCHAIN=/tmp/ndk-arm;                                             \
+	${ANDROID_NDK}/build/tools/make-standalone-toolchain.sh                    \
+	--toolchain=$${CROSS_PREFIX}4.6 --install-dir=$${TOOLCHAIN}                \
+	--system=linux-x86_64;                                                     \
+	export PATH=$$TOOLCHAIN/bin:$$PATH;                                        \
+	export CC=arm-linux-androideabi-gcc;                                       \
+	export CXX=arm-linux-androideabi-g++;                                      \
+	export TARGET_OS=OS_ANDROID_CROSSCOMPILE;                                  \
+	./configure --host=arm-linux --enable-static --disable-shared;             \
+	make -s ${PARALLEL} || exit 1;                                             \
+	touch ${CURL_TIMESTAMP};                                                   \
+	touch ${CURL_TIMESTAMP_INT};                                               \
+	else                                                                       \
+		echo "nothing to be done for curl";                                    \
+	fi
+	
+clean_curl :
+	$(RM) -rf deps/curl
 
 $(ASSETS_TIMESTAMP) :
 	@mkdir -p ${ROOT}/deps;                                                     \

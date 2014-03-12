@@ -77,18 +77,20 @@ public class MinetestAssetCopy extends Activity {
 				
 				File testme = new File(baseDir + "/" + full_path);
 				
+				long asset_filesize = -1;
+				long stored_filesize = -1;
+				
 				if (testme.exists()) {
-					long asset_filesize = 0;
 					try {
 						AssetFileDescriptor fd = getAssets().openFd(full_path);
 						asset_filesize = fd.getLength();
 					} catch (IOException e) {
-						refresh = false;
+						refresh = true;
 					}
 					
-					long sdcard_filesize = testme.length();
+					stored_filesize = testme.length();
 					
-					if (asset_filesize == sdcard_filesize) {
+					if (asset_filesize == stored_filesize) {
 						refresh = false;
 					}
 					
@@ -98,7 +100,8 @@ public class MinetestAssetCopy extends Activity {
 					m_tocopy.add(full_path);
 				}
 				else {
-					Log.w("MinetestAssetCopy","Already present: " + full_path);
+					Log.w("MinetestAssetCopy","Already present: " + full_path 
+							+ " (" + stored_filesize + "/" + asset_filesize +")");
 				}
 			}
 		}

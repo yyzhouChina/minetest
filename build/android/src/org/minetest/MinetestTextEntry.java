@@ -35,6 +35,14 @@ public class MinetestTextEntry extends Activity {
 		mTextInputWidget.setHint(hint);
 		mTextInputWidget.setText(current);
 		mTextInputWidget.setMinWidth(300);
+		if (editType == SingleLinePasswordInput) {
+			mTextInputWidget.setInputType(InputType.TYPE_CLASS_TEXT | 
+					InputType.TYPE_TEXT_VARIATION_PASSWORD);
+		}
+		else {
+			mTextInputWidget.setInputType(InputType.TYPE_CLASS_TEXT);
+		}
+		
 		
 		builder.setView(mTextInputWidget);
 		
@@ -51,30 +59,19 @@ public class MinetestTextEntry extends Activity {
 			}
 		});
 		
-		if ((editType == SingleLineTextInput) || 
-				(editType == SingleLinePasswordInput)) {
-			mTextInputWidget.setImeActionLabel(acceptButton,KeyEvent.KEYCODE_ENTER);
-			mTextInputWidget.setOnKeyListener(new OnKeyListener() {
-				@Override
-				public boolean onKey(View view, int KeyCode, KeyEvent event) {
-					if ( KeyCode == KeyEvent.KEYCODE_ENTER){
-	
-						pushResult(mTextInputWidget.getText().toString());
-						return true;
-					}
-					// TODO Auto-generated method stub
-					return false;
+		mTextInputWidget.setOnKeyListener(new OnKeyListener() {
+			@Override
+			public boolean onKey(View view, int KeyCode, KeyEvent event) {
+				if ( KeyCode == KeyEvent.KEYCODE_ENTER){
+
+					pushResult(mTextInputWidget.getText().toString());
+					Log.w("MinetestTextEntry","Enter key pressed");
+					return true;
 				}
-			});
-		}
-		
-		if (editType == SingleLinePasswordInput) {
-			mTextInputWidget.setInputType(InputType.TYPE_CLASS_TEXT | 
-					InputType.TYPE_TEXT_VARIATION_PASSWORD);
-		}
-		else {
-			mTextInputWidget.setInputType(InputType.TYPE_CLASS_TEXT);
-		}
+				// TODO Auto-generated method stub
+				return false;
+			}
+		});
 		
 		mTextInputDialog = builder.create();
 		mTextInputDialog.show();

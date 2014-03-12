@@ -10,7 +10,11 @@
 #define RUN_IN_PLACE 0
 #define USE_GETTEXT 0
 #define USE_SOUND 0
-#define USE_CURL 0
+
+#ifndef USE_CURL
+	#define USE_CURL 0
+#endif
+
 #define USE_FREETYPE 0
 #define STATIC_SHAREDIR ""
 

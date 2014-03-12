@@ -13,6 +13,11 @@ LOCAL_SRC_FILES := deps/leveldb/libleveldb.a
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := curl
+LOCAL_SRC_FILES := deps/curl-7.35.0/lib/.libs/libcurl.a
+include $(PREBUILT_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
 
 LOCAL_MODULE := minetest
 
@@ -25,6 +30,7 @@ endif
 LOCAL_CFLAGS := -D_IRR_ANDROID_PLATFORM_ \
 				-DHAVE_TOUCHSCREENGUI    \
 				-DUSE_LEVELDB            \
+				-DUSE_CURL=1             \
 				$(GPROF_DEF)             \
 				-pipe -fstrict-aliasing
 
@@ -52,7 +58,8 @@ LOCAL_C_INCLUDES :=                               \
 		jni/src/lua/src                           \
 		jni/src/json                              \
 		deps/leveldb/include                      \
-		deps/irrlicht/include
+		deps/irrlicht/include                     \
+		deps/curl-7.35.0/include
 
 LOCAL_SRC_FILES :=                                \
 		jni/src/ban.cpp                           \
@@ -251,7 +258,7 @@ LOCAL_SRC_FILES += jni/src/json/jsoncpp.cpp
 
 LOCAL_LDLIBS := -lEGL -llog -lGLESv1_CM -lGLESv2 -lz -landroid
 
-LOCAL_STATIC_LIBRARIES := Irrlicht LevelDB android_native_app_glue $(PROFILER_LIBS)
+LOCAL_STATIC_LIBRARIES := Irrlicht LevelDB curl android_native_app_glue $(PROFILER_LIBS)
 
 
 include $(BUILD_SHARED_LIBRARY)

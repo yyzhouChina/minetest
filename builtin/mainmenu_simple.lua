@@ -25,10 +25,12 @@ dofile(scriptpath .. DIR_DELIM .. "async_event.lua")
 local defaulttexturedir = engine.get_texturepath_share() .. DIR_DELIM .. "base" ..
 					DIR_DELIM .. "pack" .. DIR_DELIM
 
+local maintabid
+
 function main_get_formspec(name, tabdata, tabsize)
 	local retval = ""
 
-	local render_details = engine.setting_getbool("public_serverlist")
+	local render_details = dump(engine.setting_getbool("public_serverlist"))
 
 	retval = retval ..
 		"label[0,3.0;".. fgettext("Address/Port") .. "]"..
@@ -36,7 +38,7 @@ function main_get_formspec(name, tabdata, tabsize)
 		"field[0.25,3.25;5.5,0.5;te_address;;" ..engine.setting_get("address") .."]" ..
 		"field[5.75,3.25;2.25,0.5;te_port;;" ..engine.setting_get("remote_port") .."]" ..
 		"checkbox[8,-0.25;cb_public_serverlist;".. fgettext("Public Serverlist") .. ";" ..
-		dump(render_details) .. "]"
+		render_details .. "]"
 
 	retval = retval ..
 		"button[8,2.5;4,1.5;btn_mp_connect;".. fgettext("Connect") .. "]" ..
@@ -80,6 +82,24 @@ function main_get_formspec(name, tabdata, tabsize)
 	return retval
 end
 
+--------------------------------------------------------------------------------
+local function asyncOnlineFavourites()
+	local maintabdata = tabbuilder.get_tabdata(maintabid)
+	maintabdata.favorites = {}
+	engine.handle_async(
+		function(param)
+			return engine.get_favorites("online")
+		end,
+		nil,
+		function(result)
+			maintabdata.favorites = result
+			engine.event_handler("Refresh")
+		end
+		)
+end
+
+--------------------------------------------------------------------------------
+
 function main_button_handler(fields,name,tabdata)
 	if fields["btn_start_singleplayer"] then
 		gamedata.selected_world	= gamedata.worldindex
@@ -103,6 +123,18 @@ function main_button_handler(fields,name,tabdata)
 
 				tabdata.fav_selected = event.index
 			end
+		end
+		return
+	end
+
+	if fields["cb_public_serverlist"] ~= nil then
+		engine.setting_set("public_serverlist", fields["cb_public_serverlist"])
+
+		if engine.setting_getbool("public_serverlist") then
+			asyncOnlineFavourites()
+		else
+			local maintabdata = tabbuilder.get_tabdata(maintabid)
+			maintabdata.favorites = engine.get_favorites("local")
 		end
 		return
 	end
@@ -166,7 +198,7 @@ function init_globals()
 		end
 	end
 
-	local maintabid = tabbuilder.register_tab("main",fgettext("Main"),nil,
+	maintabid = tabbuilder.register_tab("main",fgettext("Main"),nil,
 		main_get_formspec,main_button_handler)
 
 	local maintabdata = tabbuilder.get_tabdata(maintabid)
@@ -174,16 +206,7 @@ function init_globals()
 	maintabdata.favorites = {}
 	maintabdata.fav_selected = 0
 
-	engine.handle_async(
-		function(param)
-			return engine.get_favorites("online")
-		end,
-		nil,
-		function(result)
-			maintabdata.favorites = result
-			engine.event_handler("Refresh")
-		end
-		)
+	asyncOnlineFavourites()
 
 	tabbuilder.register_tab("adv",fgettext("Advanced"),nil,function() return "" end)
 

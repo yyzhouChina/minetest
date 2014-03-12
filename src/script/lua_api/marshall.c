@@ -313,6 +313,7 @@ static void mar_decode_value
     (lua_State *L, const char *buf, size_t len, const char **p, size_t *idx)
 {
     size_t l;
+    lua_Number param;
     char val_type = **p;
     mar_incr_ptr(MAR_CHR);
     switch (val_type) {
@@ -321,7 +322,8 @@ static void mar_decode_value
         mar_incr_ptr(MAR_CHR);
         break;
     case LUA_TNUMBER:
-        lua_pushnumber(L, *(lua_Number*)*p);
+        memcpy(&param,(lua_Number*)*p,sizeof(lua_Number));
+        lua_pushnumber(L, param);
         mar_incr_ptr(MAR_I64);
         break;
     case LUA_TSTRING:

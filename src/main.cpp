@@ -1967,5 +1967,7 @@ void android_main(android_app *app) {
 	catch(...) {
 		__android_log_print(porting::ANDROID_LOG_ERROR, PROJECT_NAME, "Some exception occured");
 	}
+
+	porting::cleanupAndroid();
 }
 #endif

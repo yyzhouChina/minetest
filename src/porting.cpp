@@ -634,6 +634,11 @@ void initAndroid()
 	}
 }
 
+void cleanupAndroid() {
+	JavaVM *jvm = app_global->activity->vm;
+	jvm->DetachCurrentThread();
+}
+
 void setExternalStorageDir(JNIEnv* lJNIEnv) {
 
 	// Android: Retrieve ablsolute path to external storage device (sdcard)

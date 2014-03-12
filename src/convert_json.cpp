@@ -33,18 +33,20 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 Json::Value                 fetchJsonValue(const std::string url,
 													struct curl_slist *chunk) {
-#if USE_CURL
+
 
 	HTTPFetchRequest fetchrequest;
 	HTTPFetchResult fetchresult;
 	fetchrequest.url = url;
 	fetchrequest.caller = HTTPFETCH_SYNC;
 
+#if USE_CURL
 	struct curl_slist* runptr = chunk;
 	while(runptr) {
 		fetchrequest.extra_headers.push_back(runptr->data);
 		runptr = runptr->next;
 	}
+#endif
 	httpfetch_sync(fetchrequest,fetchresult);
 
 	if (!fetchresult.succeeded) {
@@ -71,7 +73,7 @@ Json::Value                 fetchJsonValue(const std::string url,
 	else {
 		return root;
 	}
-#endif
+
 	return Json::Value();
 }
 

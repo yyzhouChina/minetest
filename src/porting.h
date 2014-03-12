@@ -301,6 +301,7 @@ void copyAssets();
 void showInputDialog(const std::string& acceptButton,
 		const  std::string& hint, const std::string& current, int editType);
 void initAndroid();
+void cleanupAndroid();
 
 int getInputDialogState();
 std::string getInputDialogValue();
