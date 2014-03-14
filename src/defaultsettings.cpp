@@ -279,6 +279,7 @@ void set_default_settings(Settings *settings)
 	settings->setDefault("fullscreen", "true");
 	settings->setDefault("enable_particles", "false");
 	settings->setDefault("video_driver", "ogles1");
+	settings->setDefault("touchtarget", "true");
 	settings->setDefault("main_menu_script","/sdcard/Minetest/builtin/mainmenu_simple.lua");
 #endif
 }

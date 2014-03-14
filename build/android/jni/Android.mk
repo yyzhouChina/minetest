@@ -18,7 +18,22 @@ LOCAL_SRC_FILES := deps/curl-7.35.0/lib/.libs/libcurl.a
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := openal
+LOCAL_SRC_FILES := deps/openal-soft/libs/$(TARGET_ARCH_ABI)/libopenal.so
+include $(PREBUILT_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := ogg
+LOCAL_SRC_FILES := deps/libvorbis-libogg-android/libs/$(TARGET_ARCH_ABI)/libogg.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := vorbis
+LOCAL_SRC_FILES := deps/libvorbis-libogg-android/libs/$(TARGET_ARCH_ABI)/libvorbis.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+
+include $(CLEAR_VARS)
 LOCAL_MODULE := minetest
 
 LOCAL_CPP_FEATURES += exceptions
@@ -31,6 +46,7 @@ LOCAL_CFLAGS := -D_IRR_ANDROID_PLATFORM_ \
 				-DHAVE_TOUCHSCREENGUI    \
 				-DUSE_LEVELDB            \
 				-DUSE_CURL=1             \
+				-DUSE_SOUND=1            \
 				$(GPROF_DEF)             \
 				-pipe -fstrict-aliasing
 
@@ -59,7 +75,9 @@ LOCAL_C_INCLUDES :=                               \
 		jni/src/json                              \
 		deps/leveldb/include                      \
 		deps/irrlicht/include                     \
-		deps/curl-7.35.0/include
+		deps/curl-7.35.0/include                  \
+		deps/openal-soft/jni/OpenAL/include       \
+		deps/libvorbis-libogg-android/jni/include
 
 LOCAL_SRC_FILES :=                                \
 		jni/src/ban.cpp                           \
@@ -155,6 +173,7 @@ LOCAL_SRC_FILES :=                                \
 		jni/src/sky.cpp                           \
 		jni/src/socket.cpp                        \
 		jni/src/sound.cpp                         \
+		jni/src/sound_openal.cpp                  \
 		jni/src/staticobject.cpp                  \
 		jni/src/subgame.cpp                       \
 		jni/src/test.cpp                          \
@@ -256,10 +275,9 @@ LOCAL_SRC_FILES +=                                \
 # json
 LOCAL_SRC_FILES += jni/src/json/jsoncpp.cpp
 
-LOCAL_LDLIBS := -lEGL -llog -lGLESv1_CM -lGLESv2 -lz -landroid
-
+LOCAL_SHARED_LIBRARIES := openal ogg vorbis
 LOCAL_STATIC_LIBRARIES := Irrlicht LevelDB curl android_native_app_glue $(PROFILER_LIBS)
-
+LOCAL_LDLIBS := -lEGL -llog -lGLESv1_CM -lGLESv2 -lz -landroid
 
 include $(BUILD_SHARED_LIBRARY)
 

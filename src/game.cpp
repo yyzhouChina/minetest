@@ -1030,10 +1030,10 @@ static void show_pause_menu(FormspecFormSource* current_formspec,
 
 	std::string formspec =
 		"size[11,5.5,true]"
-		"button_exit[4,1;3,0.5;btn_continue;"  + std::string(gettext("Continue"))+ "]"
-		"button[4,2;3,0.5;btn_sound;"     + std::string(gettext("Sound Volume")) + "]"
-		"button[4,3;3,0.5;btn_exit_menu;" + std::string(gettext("Exit to Menu")) + "]"
-		"button[4,4;3,0.5;btn_exit_os;"   + std::string(gettext("Exit to OS"))   + "]"
+		"button_exit[4,1;3,0.5;btn_continue;"  + std::string(gettext("Continue"))     + "]"
+		"button_exit[4,2;3,0.5;btn_sound;"     + std::string(gettext("Sound Volume")) + "]"
+		"button_exit[4,3;3,0.5;btn_exit_menu;" + std::string(gettext("Exit to Menu")) + "]"
+		"button_exit[4,4;3,0.5;btn_exit_os;"   + std::string(gettext("Exit to OS"))   + "]"
 		"textarea[7.5,0.25;3.75,6;;" + std::string(control_text) + ";]"
 		"textarea[0.4,0.25;3.5,6;;" + os.str() + ";]"
 		;
@@ -2713,9 +2713,12 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 			d = 4.0;
 		core::line3d<f32> shootline(camera_position,
 				camera_position + camera_direction * BS * (d+1));
-#ifdef HAVE_TOUCHSCREENGUI
-		if (touchscreengui)
+#ifdef HAVE_TOUCHSCREENGUI_
+		if ((g_settings->getBool("touchtarget")) && (touchscreengui)) {
 			shootline = touchscreengui->getShootline();
+			shootline.start += camera_position;
+			shootline.end += camera_position;
+		}
 #endif
 
 		ClientActiveObject *selected_object = NULL;
@@ -3528,10 +3531,17 @@ void the_game(bool &kill, bool random_input, InputHandler *input,
 		/*
 			Draw crosshair (only when no touchscreen gui is used)
 		*/
+#ifdef HAVE_TOUCHSCREENGUI
+		bool touchtarget = false;
+		try {
+			touchtarget = g_settings->getBool("touchtarget");
+		}
+		catch(...) {}
+#endif
 		if (
 			show_hud
 #ifdef HAVE_TOUCHSCREENGUI
-			&& !touchscreengui
+			&& (!touchtarget)
 #endif
 			)
 			hud.drawCrosshair();

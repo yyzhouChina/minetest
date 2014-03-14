@@ -71,6 +71,12 @@ public class MtNativeActivity extends NativeActivity {
 		}
 	}
 	
+	static {
+		System.loadLibrary("openal");
+		System.loadLibrary("ogg");
+		System.loadLibrary("vorbis");
+	}
+	
 	private int m_MessagReturnCode;
 	private String m_MessageReturnValue;
 }
